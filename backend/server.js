@@ -1,8 +1,64 @@
 const express = require('express');
 const cors = require('cors');
+const nodemailer = require('nodemailer');
 const { v4: uuidv4 } = require('uuid');
 const { all, get, run, transaction, initializeDatabase } = require('./database');
 const { startNotificationScheduler } = require('./notificationScheduler');
+
+// ── Email transport (Brevo SMTP) ─────────────
+let mailTransporter = null;
+function initMailTransport() {
+  if (process.env.SMTP_HOST) {
+    mailTransporter = nodemailer.createTransport({
+      host: process.env.SMTP_HOST,
+      port: Number(process.env.SMTP_PORT) || 587,
+      secure: false,
+      auth: {
+        user: process.env.SMTP_USER,
+        pass: process.env.SMTP_PASS,
+      },
+    });
+    console.log('📧 OTP email transport: SMTP configured');
+  } else {
+    console.log('📧 OTP email transport: not configured (OTPs logged to console)');
+  }
+}
+
+async function sendOTPEmail(to, code, purpose) {
+  const isSignup = purpose === 'verify';
+  const subject = isSignup ? `MUA Planner – Verify your account` : `MUA Planner – Login OTP`;
+  const html = `
+    <div style="font-family: -apple-system, Arial, sans-serif; max-width: 500px; margin: 0 auto; padding: 24px; background: #FAF8F5; border-radius: 16px;">
+      <div style="background: #7B2D52; color: white; padding: 20px; border-radius: 12px; text-align: center; margin-bottom: 20px;">
+        <h1 style="margin: 0; font-size: 20px;">✨ MUA Planner</h1>
+        <p style="margin: 8px 0 0; opacity: 0.9; font-size: 14px;">${isSignup ? 'Account Verification' : 'Login Verification'}</p>
+      </div>
+      <div style="background: white; padding: 24px; border-radius: 12px; border: 1px solid #E8E4DF; text-align: center;">
+        <p style="color: #5C5C70; font-size: 14px; margin: 0 0 16px;">Your one-time password is:</p>
+        <div style="font-size: 32px; font-weight: bold; color: #7B2D52; letter-spacing: 6px; padding: 16px; background: #F7F5F2; border-radius: 8px;">${code}</div>
+        <p style="color: #9E9EB0; font-size: 12px; margin: 16px 0 0;">This code expires in 10 minutes. Do not share it with anyone.</p>
+      </div>
+      <p style="text-align: center; color: #9E9EB0; font-size: 11px; margin-top: 16px;">Sent by MUA Planner</p>
+    </div>
+  `;
+
+  if (mailTransporter) {
+    try {
+      await mailTransporter.sendMail({
+        from: `"MUA Planner" <${process.env.SMTP_FROM || process.env.SMTP_USER}>`,
+        to,
+        subject,
+        text: `Your MUA Planner OTP is: ${code}. It expires in 10 minutes.`,
+        html,
+      });
+      console.log(`📧 OTP email sent to ${to}`);
+    } catch (err) {
+      console.error(`📧 OTP email failed for ${to}:`, err.message);
+    }
+  } else {
+    console.log(`\n📧 OTP for ${to}: ${code}\n`);
+  }
+}
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -752,8 +808,8 @@ app.post('/api/auth/signup', async (req, res) => {
     const expiresAt = new Date(Date.now() + 10 * 60 * 1000).toISOString();
     await run('INSERT INTO otp (email, code, purpose, expiresAt, createdAt) VALUES (?, ?, ?, ?, ?)', cleanEmail, code, 'verify', expiresAt, now);
 
-    // In production, send email here. For dev, log to console.
-    console.log(`\n📧 OTP for ${cleanEmail}: ${code}\n`);
+    // Send OTP email
+    await sendOTPEmail(cleanEmail, code, 'verify');
 
     res.json({ success: true, message: 'OTP sent to your email' });
   } catch (err) {
@@ -826,7 +882,7 @@ app.post('/api/auth/login', async (req, res) => {
     const expiresAt = new Date(Date.now() + 10 * 60 * 1000).toISOString();
     await run('INSERT INTO otp (email, code, purpose, expiresAt, createdAt) VALUES (?, ?, ?, ?, ?)', cleanEmail, code, 'login', expiresAt, now);
 
-    console.log(`\n📧 Login OTP for ${cleanEmail}: ${code}\n`);
+    await sendOTPEmail(cleanEmail, code, 'login');
 
     res.json({ success: true, message: 'OTP sent to your email' });
   } catch (err) {
@@ -1052,6 +1108,7 @@ app.get('/api/health', (req, res) => {
 // Start server
 async function start() {
   await initializeDatabase();
+  initMailTransport();
   app.listen(PORT, '0.0.0.0', () => {
     console.log(`🚀 MUA Planner Backend running on http://localhost:${PORT}`);
     // Start notification scheduler after server is up
