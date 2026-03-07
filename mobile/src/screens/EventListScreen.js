@@ -171,10 +171,16 @@ export default function EventListScreen({ navigation }) {
     }
   };
 
+  const initialLoadDone = useRef(false);
+
   useFocusEffect(
     useCallback(() => {
-      setLoading(true);
-      fetchEvents();
+      if (!initialLoadDone.current) {
+        setLoading(true);
+      }
+      fetchEvents().then(() => {
+        initialLoadDone.current = true;
+      });
     }, [activeFilter, searchText])
   );
 
