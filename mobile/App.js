@@ -17,8 +17,6 @@ import AddEventScreen from './src/screens/AddEventScreen';
 import EditEventScreen from './src/screens/EditEventScreen';
 import CancelEventScreen from './src/screens/CancelEventScreen';
 
-import TravelListScreen from './src/screens/TravelListScreen';
-import TravelDetailScreen from './src/screens/TravelDetailScreen';
 import AddTravelScreen from './src/screens/AddTravelScreen';
 import EditTravelScreen from './src/screens/EditTravelScreen';
 
@@ -104,34 +102,6 @@ function EventsStack() {
         name="CancelEvent"
         component={CancelEventScreen}
         options={{ title: 'Cancel Event', presentation: 'modal' }}
-      />
-    </Stack.Navigator>
-  );
-}
-
-// ── Travel module stack ──
-function TravelStack() {
-  const C = useTheme();
-
-  return (
-    <Stack.Navigator
-      screenOptions={{
-        headerStyle: { backgroundColor: C.surface },
-        headerTintColor: C.primary,
-        headerTitleStyle: { fontWeight: '700', color: C.text },
-        headerShadowVisible: false,
-        contentStyle: { backgroundColor: C.background },
-      }}
-    >
-      <Stack.Screen
-        name="TravelList"
-        component={TravelListScreen}
-        options={{ title: 'Travel' }}
-      />
-      <Stack.Screen
-        name="TravelDetail"
-        component={TravelDetailScreen}
-        options={{ title: 'Travel Details' }}
       />
       <Stack.Screen
         name="AddTravel"
@@ -260,21 +230,7 @@ function AppNavigator() {
             ),
           }}
         />
-        <Tab.Screen
-          name="TravelTab"
-          component={TravelStack}
-          options={{
-            tabBarLabel: 'Travel',
-            tabBarIcon: ({ color, size }) => (
-              <Ionicons name="airplane" size={size} color={color} />
-            ),
-          }}
-          listeners={({ navigation }) => ({
-            tabPress: () => {
-              navigation.navigate('TravelTab', { screen: 'TravelList' });
-            },
-          })}
-        />
+
         <Tab.Screen
           name="SettingsTab"
           component={SettingsStack}

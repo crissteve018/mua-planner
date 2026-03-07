@@ -25,7 +25,7 @@ import {
   undoDeleteEvent,
   completeEvent,
 } from '../api/events';
-import { COLORS, EVENT_TYPE_EMOJI, STATUS_CONFIG } from '../constants';
+import { COLORS, EVENT_TYPE_EMOJI, STATUS_CONFIG, TRAVEL_MODE_MAP } from '../constants';
 import { useTheme } from '../context/SettingsContext';
 import UndoSnackbar from '../components/UndoSnackbar';
 
@@ -349,7 +349,7 @@ export default function EventListScreen({ navigation }) {
         <View style={[styles.statusStrip, { backgroundColor: sc.color }]} />
 
         <View style={styles.cardContent}>
-          {/* Row 1: icon + name */}
+          {/* Row 1: icon + name + travel modes */}
           <View style={styles.cardHeader}>
             <View style={[styles.eventIconCircle, { backgroundColor: C.primaryLight }]}>
               <Text style={styles.eventEmoji}>{getEmoji(item.eventType)}</Text>
@@ -360,6 +360,19 @@ export default function EventListScreen({ navigation }) {
               </Text>
               <Text style={[styles.eventType, { color: C.textSecondary }]}>{item.eventType}</Text>
             </View>
+            {item.travelModes ? (
+              <View style={styles.travelIcons}>
+                {item.travelModes.split(',').map((mode) => {
+                  const m = TRAVEL_MODE_MAP[mode.trim()];
+                  if (!m) return null;
+                  return (
+                    <View key={mode} style={[styles.travelIconBadge, { backgroundColor: m.color + '18' }]}>
+                      <Ionicons name={m.icon} size={13} color={m.color} />
+                    </View>
+                  );
+                })}
+              </View>
+            ) : null}
           </View>
 
           {/* Row 2: date + location */}
@@ -871,6 +884,18 @@ const styles = StyleSheet.create({
   },
   cardHeaderText: {
     flex: 1,
+  },
+  travelIcons: {
+    flexDirection: 'row',
+    gap: 4,
+    marginLeft: 6,
+  },
+  travelIconBadge: {
+    width: 26,
+    height: 26,
+    borderRadius: 13,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   clientName: {
     fontSize: 16,

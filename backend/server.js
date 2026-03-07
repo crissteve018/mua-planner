@@ -85,22 +85,24 @@ app.get('/api/events', async (req, res) => {
     );
 
     const { status, search } = req.query;
-    let sql = 'SELECT * FROM events';
+    let sql = `SELECT e.*,
+      (SELECT STRING_AGG(DISTINCT t.travelMode, ',') FROM travel t WHERE t.eventId = e.id) AS "travelModes"
+      FROM events e`;
     const params = [];
     const conditions = [];
 
     if (status && ['upcoming', 'completed', 'cancelled'].includes(status)) {
-      conditions.push('status = ?');
+      conditions.push('e.status = ?');
       params.push(status);
     }
     if (search) {
-      conditions.push('clientName LIKE ?');
+      conditions.push('e.clientName LIKE ?');
       params.push(`%${search}%`);
     }
     if (conditions.length > 0) {
       sql += ' WHERE ' + conditions.join(' AND ');
     }
-    sql += ' ORDER BY createdAt DESC';
+    sql += ' ORDER BY e.createdAt DESC';
 
     const events = await all(sql, ...params);
     res.json({ success: true, data: events });

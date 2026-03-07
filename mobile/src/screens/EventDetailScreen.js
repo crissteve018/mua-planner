@@ -8,11 +8,13 @@ import {
   Alert,
   TouchableOpacity,
   Linking,
+  Modal,
+  Dimensions,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
 import { getEventById, deleteEvent, undoDeleteEvent } from '../api/events';
-import { getTravelSummary } from '../api/travel';
+import { getTravelSummary, getTravelById, deleteTravel } from '../api/travel';
 import { COLORS, EVENT_TYPE_EMOJI, STATUS_CONFIG, MONEY_OPTIONS, TRAVEL_MODE_MAP, TRAVEL_STATUS_MAP } from '../constants';
 import { useTheme } from '../context/SettingsContext';
 import UndoSnackbar from '../components/UndoSnackbar';
@@ -37,6 +39,7 @@ export default function EventDetailScreen({ route, navigation }) {
   const [snackbar, setSnackbar] = useState({ visible: false, message: '', data: null });
   const deletedRef = useRef(null);
   const [travelData, setTravelData] = useState({ records: [], totalCost: 0, legCount: 0 });
+  const [travelModal, setTravelModal] = useState({ visible: false, record: null, loading: false });
 
   const fetchEvent = async () => {
     try {
@@ -57,6 +60,34 @@ export default function EventDetailScreen({ route, navigation }) {
     } catch (err) {
       console.error('Error fetching travel summary:', err);
     }
+  };
+
+  const openTravelDetail = async (travelId) => {
+    setTravelModal({ visible: true, record: null, loading: true });
+    try {
+      const res = await getTravelById(travelId);
+      if (res.success) setTravelModal({ visible: true, record: res.data, loading: false });
+      else setTravelModal({ visible: false, record: null, loading: false });
+    } catch (err) {
+      setTravelModal({ visible: false, record: null, loading: false });
+      Alert.alert('Error', 'Could not load travel details.');
+    }
+  };
+
+  const handleDeleteTravel = (rec) => {
+    Alert.alert('Delete Travel', 'Delete this travel record?', [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Delete', style: 'destructive',
+        onPress: async () => {
+          try {
+            await deleteTravel(rec.id);
+            setTravelModal({ visible: false, record: null, loading: false });
+            fetchTravel();
+          } catch (err) { Alert.alert('Error', 'Could not delete travel.'); }
+        },
+      },
+    ]);
   };
 
   useFocusEffect(
@@ -363,10 +394,7 @@ export default function EventDetailScreen({ route, navigation }) {
             <SectionHeader icon="airplane" iconColor={C.sectionTravel || '#00796B'} title="Travel" />
             <TouchableOpacity
               style={{ flexDirection: 'row', alignItems: 'center', gap: 4, paddingVertical: 4, paddingHorizontal: 8 }}
-              onPress={() => navigation.navigate('TravelTab', {
-                screen: 'AddTravel',
-                params: { eventId: event.id },
-              })}
+              onPress={() => navigation.navigate('AddTravel', { eventId: event.id })}
             >
               <Ionicons name="add-circle" size={18} color={C.primary} />
               <Text style={{ fontSize: 13, fontWeight: '600', color: C.primary }}>Add</Text>
@@ -406,10 +434,7 @@ export default function EventDetailScreen({ route, navigation }) {
                       flexDirection: 'row', alignItems: 'center', paddingVertical: 10, paddingHorizontal: 4,
                       borderBottomWidth: 1, borderBottomColor: C.borderLight,
                     }}
-                    onPress={() => navigation.navigate('TravelTab', {
-                      screen: 'TravelDetail',
-                      params: { travelId: rec.id },
-                    })}
+                    onPress={() => openTravelDetail(rec.id)}
                   >
                     <View style={{
                       width: 34, height: 34, borderRadius: 17, justifyContent: 'center', alignItems: 'center',
@@ -483,6 +508,42 @@ export default function EventDetailScreen({ route, navigation }) {
           setSnackbar({ visible: false, message: '', data: null });
         }}
       />
+
+      {/* ── Travel Detail Modal (3/4 screen) ── */}
+      <Modal
+        visible={travelModal.visible}
+        animationType="slide"
+        transparent
+        onRequestClose={() => setTravelModal({ visible: false, record: null, loading: false })}
+      >
+        <View style={modalStyles.overlay}>
+          <View style={[modalStyles.sheet, { backgroundColor: C.background }]}>  
+            {/* Close button */}
+            <TouchableOpacity
+              style={[modalStyles.closeBtn, { backgroundColor: C.inputBg }]}
+              onPress={() => setTravelModal({ visible: false, record: null, loading: false })}
+            >
+              <Ionicons name="close" size={22} color={C.text} />
+            </TouchableOpacity>
+
+            {travelModal.loading ? (
+              <View style={modalStyles.loaderWrap}>
+                <ActivityIndicator size="large" color={C.primary} />
+              </View>
+            ) : travelModal.record ? (
+              <TravelDetailContent
+                record={travelModal.record}
+                C={C}
+                onEdit={() => {
+                  setTravelModal({ visible: false, record: null, loading: false });
+                  navigation.navigate('EditTravel', { travelId: travelModal.record.id });
+                }}
+                onDelete={() => handleDeleteTravel(travelModal.record)}
+              />
+            ) : null}
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -514,6 +575,220 @@ function ExtraServiceRow({ label, count, unit, amount }) {
     </View>
   );
 }
+
+/* ── Travel Detail Modal Content ────────────── */
+const travelFormatDate = (d) => {
+  if (!d) return '—';
+  const [y, m, day] = d.split('-');
+  const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  return `${parseInt(day, 10)} ${months[parseInt(m, 10) - 1]} ${y}`;
+};
+
+function TravelDetailContent({ record, C, onEdit, onDelete }) {
+  const mode = TRAVEL_MODE_MAP[record.travelMode] || { icon: 'help', color: '#999', label: record.travelMode };
+  const getRoute = () => {
+    switch (record.travelMode) {
+      case 'flight': return { from: record.departureCity, to: record.arrivalCity };
+      case 'train':  return { from: record.departureStation, to: record.arrivalStation };
+      case 'cab':    return { from: record.pickupLocation, to: record.dropLocation };
+      case 'own_car':return { from: record.startingLocation, to: record.destination };
+      case 'bus':    return { from: record.departureLocation, to: record.arrivalLocation };
+      default:       return { from: '', to: '' };
+    }
+  };
+  const routeInfo = getRoute();
+
+  const TravelInfoRow = ({ label, value, icon }) => {
+    if (!value && value !== 0) return null;
+    return (
+      <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 8 }}>
+        {icon && <Ionicons name={icon} size={15} color={C.textSecondary} style={{ marginRight: 8 }} />}
+        <Text style={{ fontSize: 13, color: C.textSecondary, flex: 1 }}>{label}</Text>
+        <Text style={{ fontSize: 14, fontWeight: '600', color: C.text, textAlign: 'right', flex: 1 }}>{value}</Text>
+      </View>
+    );
+  };
+
+  return (
+    <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 20, paddingTop: 8 }} showsVerticalScrollIndicator={false}>
+      {/* Hero */}
+      <View style={[modalStyles.heroCard, { borderLeftColor: mode.color, backgroundColor: C.surface }]}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 12 }}>
+          <View style={{ width: 44, height: 44, borderRadius: 22, justifyContent: 'center', alignItems: 'center', backgroundColor: mode.color + '18' }}>
+            <Ionicons name={mode.icon} size={24} color={mode.color} />
+          </View>
+          <Text style={{ fontSize: 18, fontWeight: '800', color: C.text, marginLeft: 12 }}>{mode.label}</Text>
+        </View>
+        {(routeInfo.from || routeInfo.to) && (
+          <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 10 }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1 }}>
+              <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: C.info, marginRight: 8 }} />
+              <Text style={{ fontSize: 14, fontWeight: '600', color: C.text, flex: 1 }}>{routeInfo.from || '—'}</Text>
+            </View>
+            <Ionicons name="arrow-forward" size={14} color={C.textMuted} style={{ marginHorizontal: 6 }} />
+            <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1 }}>
+              <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: C.success, marginRight: 8 }} />
+              <Text style={{ fontSize: 14, fontWeight: '600', color: C.text, flex: 1 }}>{routeInfo.to || '—'}</Text>
+            </View>
+          </View>
+        )}
+        <View style={{ flexDirection: 'row', gap: 8 }}>
+          {record.bookedByArtist ? (
+            <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: '#FFF3E0', borderRadius: 12, paddingHorizontal: 10, paddingVertical: 4 }}>
+              <Ionicons name="person" size={12} color="#D4883E" style={{ marginRight: 4 }} />
+              <Text style={{ fontSize: 11, fontWeight: '600', color: '#D4883E' }}>Booked by Artist</Text>
+            </View>
+          ) : null}
+          {record.attachmentPath ? (
+            <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: C.infoLight, borderRadius: 12, paddingHorizontal: 10, paddingVertical: 4 }}>
+              <Ionicons name="attach" size={12} color={C.info} style={{ marginRight: 4 }} />
+              <Text style={{ fontSize: 11, fontWeight: '600', color: C.info }}>Ticket Attached</Text>
+            </View>
+          ) : null}
+        </View>
+      </View>
+
+      {/* Schedule */}
+      <View style={[modalStyles.detailCard, { backgroundColor: C.surface, borderColor: C.borderLight }]}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 10 }}>
+          <View style={{ width: 26, height: 26, borderRadius: 7, justifyContent: 'center', alignItems: 'center', backgroundColor: C.info }}>
+            <Ionicons name="time" size={14} color="#FFF" />
+          </View>
+          <Text style={{ fontSize: 15, fontWeight: '700', color: C.text, marginLeft: 8 }}>Schedule</Text>
+        </View>
+        <TravelInfoRow label="Travel Date" value={travelFormatDate(record.travelDate)} icon="calendar-outline" />
+        {record.returnDate ? <TravelInfoRow label="Return Date" value={travelFormatDate(record.returnDate)} icon="calendar-outline" /> : null}
+        <TravelInfoRow label="Travellers" value={record.numTravellers} icon="people-outline" />
+      </View>
+
+      {/* Mode-Specific Details */}
+      {record.travelMode === 'flight' && record.airlineName ? (
+        <View style={[modalStyles.detailCard, { backgroundColor: C.surface, borderColor: C.borderLight }]}>
+          <TravelInfoRow label="Airline" value={record.airlineName} icon="airplane-outline" />
+        </View>
+      ) : null}
+      {record.travelMode === 'train' && (record.trainNumber || record.trainName) ? (
+        <View style={[modalStyles.detailCard, { backgroundColor: C.surface, borderColor: C.borderLight }]}>
+          <TravelInfoRow label="Train Number" value={record.trainNumber} icon="document-text-outline" />
+          <TravelInfoRow label="Train Name" value={record.trainName} icon="train-outline" />
+        </View>
+      ) : null}
+      {record.travelMode === 'cab' && (record.cabProvider || record.driverContact) ? (
+        <View style={[modalStyles.detailCard, { backgroundColor: C.surface, borderColor: C.borderLight }]}>
+          <TravelInfoRow label="Provider" value={record.cabProvider} icon="car-sport-outline" />
+          <TravelInfoRow label="Est. Fare" value={record.estimatedFare ? `₹${Number(record.estimatedFare).toLocaleString('en-IN')}` : null} icon="cash-outline" />
+          <TravelInfoRow label="Driver Contact" value={record.driverContact} icon="call-outline" />
+        </View>
+      ) : null}
+      {record.travelMode === 'own_car' ? (
+        <View style={[modalStyles.detailCard, { backgroundColor: C.surface, borderColor: C.borderLight }]}>
+          <TravelInfoRow label="Distance" value={record.distance ? `${record.distance} km` : null} icon="speedometer-outline" />
+          <TravelInfoRow label="Fuel Cost" value={record.fuelCost ? `₹${Number(record.fuelCost).toLocaleString('en-IN')}` : null} icon="flame-outline" />
+          <TravelInfoRow label="Toll" value={record.tollCharges ? `₹${Number(record.tollCharges).toLocaleString('en-IN')}` : null} icon="card-outline" />
+          <TravelInfoRow label="Parking" value={record.parkingCharges ? `₹${Number(record.parkingCharges).toLocaleString('en-IN')}` : null} icon="car-outline" />
+        </View>
+      ) : null}
+      {record.travelMode === 'bus' && record.busOperator ? (
+        <View style={[modalStyles.detailCard, { backgroundColor: C.surface, borderColor: C.borderLight }]}>
+          <TravelInfoRow label="Operator" value={record.busOperator} icon="bus-outline" />
+        </View>
+      ) : null}
+
+      {/* Cost */}
+      {record.totalCost > 0 && (
+        <View style={[modalStyles.costCard, { backgroundColor: C.accentLight, borderColor: C.accent + '30' }]}>
+          <Ionicons name="wallet" size={20} color={C.accent} />
+          <Text style={{ fontSize: 22, fontWeight: '800', color: C.accent, marginLeft: 8 }}>
+            ₹{Number(record.totalCost).toLocaleString('en-IN')}
+          </Text>
+        </View>
+      )}
+
+      {/* Notes */}
+      {record.notes ? (
+        <View style={[modalStyles.detailCard, { backgroundColor: C.surface, borderColor: C.borderLight }]}>
+          <Text style={{ fontSize: 14, color: C.text, lineHeight: 20 }}>{record.notes}</Text>
+        </View>
+      ) : null}
+
+      {/* Action buttons */}
+      <View style={{ flexDirection: 'row', gap: 12, marginTop: 16, marginBottom: 30 }}>
+        <TouchableOpacity
+          style={{ flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingVertical: 14, borderRadius: 14, backgroundColor: C.primary }}
+          onPress={onEdit}
+        >
+          <Ionicons name="create-outline" size={18} color="#FFF" />
+          <Text style={{ fontSize: 15, fontWeight: '700', color: '#FFF' }}>Edit</Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={{ flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingVertical: 14, borderRadius: 14, backgroundColor: C.danger }}
+          onPress={onDelete}
+        >
+          <Ionicons name="trash-outline" size={18} color="#FFF" />
+          <Text style={{ fontSize: 15, fontWeight: '700', color: '#FFF' }}>Delete</Text>
+        </TouchableOpacity>
+      </View>
+    </ScrollView>
+  );
+}
+
+const { height: SCREEN_HEIGHT } = Dimensions.get('window');
+
+const modalStyles = StyleSheet.create({
+  overlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.45)',
+    justifyContent: 'flex-end',
+  },
+  sheet: {
+    height: SCREEN_HEIGHT * 0.75,
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    overflow: 'hidden',
+  },
+  closeBtn: {
+    alignSelf: 'flex-end',
+    margin: 14,
+    marginBottom: 0,
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  loaderWrap: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  heroCard: {
+    borderRadius: 14,
+    padding: 16,
+    borderLeftWidth: 4,
+    marginBottom: 12,
+    shadowColor: '#000',
+    shadowOpacity: 0.04,
+    shadowRadius: 6,
+    shadowOffset: { width: 0, height: 2 },
+    elevation: 2,
+  },
+  detailCard: {
+    borderRadius: 14,
+    padding: 14,
+    borderWidth: 1,
+    marginBottom: 10,
+    gap: 4,
+  },
+  costCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 14,
+    padding: 16,
+    borderWidth: 1,
+    marginBottom: 10,
+  },
+});
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: COLORS.background },

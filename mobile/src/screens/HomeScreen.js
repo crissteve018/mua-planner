@@ -238,7 +238,7 @@ export default function HomeScreen({ navigation }) {
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
             <Text style={[styles.sectionTitle, { color: C.text }]}>✈️ Travel Alerts</Text>
-            <TouchableOpacity onPress={() => navigation.navigate('TravelTab')}>
+            <TouchableOpacity onPress={() => navigation.navigate('EventsTab')}>
               <Text style={[styles.seeAll, { color: C.primary }]}>See All</Text>
             </TouchableOpacity>
           </View>
@@ -312,7 +312,7 @@ export default function HomeScreen({ navigation }) {
           <TouchableOpacity
             style={[styles.actionBtn, { backgroundColor: C.accent }]}
             activeOpacity={0.8}
-            onPress={() => navigation.navigate('TravelTab', { screen: 'AddTravel', initial: false })}
+            onPress={() => navigation.navigate('EventsTab', { screen: 'AddTravel', initial: false })}
           >
             <Ionicons name="airplane" size={22} color="#fff" />
             <Text style={styles.actionText}>New Travel</Text>
