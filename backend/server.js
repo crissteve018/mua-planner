@@ -1,0 +1,1061 @@
+const express = require('express');
+const cors = require('cors');
+const { v4: uuidv4 } = require('uuid');
+const { all, get, run, transaction, initializeDatabase } = require('./database');
+const { startNotificationScheduler } = require('./notificationScheduler');
+
+const app = express();
+const PORT = process.env.PORT || 3000;
+
+// Middleware
+app.use(cors());
+app.use(express.json());
+
+// ─────────────────────────────────────────────
+// EVENTS API
+// ─────────────────────────────────────────────
+
+// GET /api/events — List all events
+// Optional query: ?status=upcoming|completed|cancelled  &search=name
+app.get('/api/events', async (req, res) => {
+  try {
+    // Auto-complete: mark upcoming events with past dates as completed
+    const today = new Date().toISOString().split('T')[0];
+    const now = new Date().toISOString();
+    await run(
+      `UPDATE events SET status = 'completed', updatedAt = ?
+       WHERE status = 'upcoming' AND eventDate != '' AND eventDate <= ?`,
+      now, today
+    );
+
+    const { status, search } = req.query;
+    let sql = 'SELECT * FROM events';
+    const params = [];
+    const conditions = [];
+
+    if (status && ['upcoming', 'completed', 'cancelled'].includes(status)) {
+      conditions.push('status = ?');
+      params.push(status);
+    }
+    if (search) {
+      conditions.push('clientName LIKE ?');
+      params.push(`%${search}%`);
+    }
+    if (conditions.length > 0) {
+      sql += ' WHERE ' + conditions.join(' AND ');
+    }
+    sql += ' ORDER BY createdAt DESC';
+
+    const events = await all(sql, ...params);
+    res.json({ success: true, data: events });
+  } catch (err) {
+    console.error('Error fetching events:', err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// GET /api/events/:id — Get single event details
+app.get('/api/events/:id', async (req, res) => {
+  try {
+    const event = await get('SELECT * FROM events WHERE id = ?', req.params.id);
+    if (!event) {
+      return res.status(404).json({ success: false, error: 'Event not found' });
+    }
+    res.json({ success: true, data: event });
+  } catch (err) {
+    console.error('Error fetching event:', err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// POST /api/events — Create a new event
+app.post('/api/events', async (req, res) => {
+  try {
+    const b = req.body;
+
+    if (!b.clientName || !b.eventType) {
+      return res.status(400).json({
+        success: false,
+        error: 'Client Name and Event Type are required',
+      });
+    }
+
+    const id = uuidv4();
+    const now = new Date().toISOString();
+
+    await run(`
+      INSERT INTO events (
+        id, clientName, clientPhone, alternativePhone, emailAddress,
+        eventType, country, state, city, buildingName, address, locationDirection,
+        workLocationDifferent, workCountry, workState, workCity,
+        workBuildingName, workAddress, workLocationDirection,
+        typeOfMakeup, packageAmount, advancePaid,
+        touchupRequired, touchupCount, touchupAmount,
+        extraSareeDrapes, sareeDrapesCount, sareeDrapesAmount,
+        waitingRequired, waitingHours, waitingAmount,
+        extraMakeup, extraMakeupCount, extraMakeupAmount,
+        extraHairdo, extraHairdoCount, extraHairdoAmount,
+        eventDate, eventTime, notes, status, createdAt, updatedAt
+      ) VALUES (
+        ?, ?, ?, ?, ?,
+        ?, ?, ?, ?, ?, ?, ?,
+        ?, ?, ?, ?,
+        ?, ?, ?,
+        ?, ?, ?,
+        ?, ?, ?,
+        ?, ?, ?,
+        ?, ?, ?,
+        ?, ?, ?,
+        ?, ?, ?,
+        ?, ?, ?, 'upcoming', ?, ?
+      )
+    `,
+      id, b.clientName, b.clientPhone || '', b.alternativePhone || '', b.emailAddress || '',
+      b.eventType, b.country || '', b.state || '', b.city || '', b.buildingName || '', b.address || '', b.locationDirection || '',
+      b.workLocationDifferent ? 1 : 0, b.workCountry || '', b.workState || '', b.workCity || '',
+      b.workBuildingName || '', b.workAddress || '', b.workLocationDirection || '',
+      b.typeOfMakeup || '', b.packageAmount || 0, b.advancePaid || 0,
+      b.touchupRequired ? 1 : 0, b.touchupCount || 0, b.touchupAmount || 0,
+      b.extraSareeDrapes ? 1 : 0, b.sareeDrapesCount || 0, b.sareeDrapesAmount || 0,
+      b.waitingRequired ? 1 : 0, b.waitingHours || 0, b.waitingAmount || 0,
+      b.extraMakeup ? 1 : 0, b.extraMakeupCount || 0, b.extraMakeupAmount || 0,
+      b.extraHairdo ? 1 : 0, b.extraHairdoCount || 0, b.extraHairdoAmount || 0,
+      b.eventDate || '', b.eventTime || '', b.notes || '', now, now
+    );
+
+    const newEvent = await get('SELECT * FROM events WHERE id = ?', id);
+    res.status(201).json({ success: true, data: newEvent });
+  } catch (err) {
+    console.error('Error creating event:', err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// PUT /api/events/:id — Update an event
+app.put('/api/events/:id', async (req, res) => {
+  try {
+    const existing = await get('SELECT * FROM events WHERE id = ?', req.params.id);
+    if (!existing) {
+      return res.status(404).json({ success: false, error: 'Event not found' });
+    }
+
+    const b = req.body;
+    const now = new Date().toISOString();
+
+    await run(`
+      UPDATE events SET
+        clientName = ?, clientPhone = ?, alternativePhone = ?, emailAddress = ?,
+        eventType = ?, country = ?, state = ?, city = ?,
+        buildingName = ?, address = ?, locationDirection = ?,
+        workLocationDifferent = ?, workCountry = ?, workState = ?, workCity = ?,
+        workBuildingName = ?, workAddress = ?, workLocationDirection = ?,
+        typeOfMakeup = ?, packageAmount = ?, advancePaid = ?,
+        touchupRequired = ?, touchupCount = ?, touchupAmount = ?,
+        extraSareeDrapes = ?, sareeDrapesCount = ?, sareeDrapesAmount = ?,
+        waitingRequired = ?, waitingHours = ?, waitingAmount = ?,
+        extraMakeup = ?, extraMakeupCount = ?, extraMakeupAmount = ?,
+        extraHairdo = ?, extraHairdoCount = ?, extraHairdoAmount = ?,
+        eventDate = ?, eventTime = ?, notes = ?, status = ?, updatedAt = ?
+      WHERE id = ?
+    `,
+      b.clientName ?? existing.clientName,
+      b.clientPhone ?? existing.clientPhone,
+      b.alternativePhone ?? existing.alternativePhone,
+      b.emailAddress ?? existing.emailAddress,
+      b.eventType ?? existing.eventType,
+      b.country ?? existing.country,
+      b.state ?? existing.state,
+      b.city ?? existing.city,
+      b.buildingName ?? existing.buildingName,
+      b.address ?? existing.address,
+      b.locationDirection ?? existing.locationDirection,
+      b.workLocationDifferent !== undefined ? (b.workLocationDifferent ? 1 : 0) : existing.workLocationDifferent,
+      b.workCountry ?? existing.workCountry,
+      b.workState ?? existing.workState,
+      b.workCity ?? existing.workCity,
+      b.workBuildingName ?? existing.workBuildingName,
+      b.workAddress ?? existing.workAddress,
+      b.workLocationDirection ?? existing.workLocationDirection,
+      b.typeOfMakeup ?? existing.typeOfMakeup,
+      b.packageAmount ?? existing.packageAmount,
+      b.advancePaid ?? existing.advancePaid,
+      b.touchupRequired !== undefined ? (b.touchupRequired ? 1 : 0) : existing.touchupRequired,
+      b.touchupCount ?? existing.touchupCount,
+      b.touchupAmount ?? existing.touchupAmount,
+      b.extraSareeDrapes !== undefined ? (b.extraSareeDrapes ? 1 : 0) : existing.extraSareeDrapes,
+      b.sareeDrapesCount ?? existing.sareeDrapesCount,
+      b.sareeDrapesAmount ?? existing.sareeDrapesAmount,
+      b.waitingRequired !== undefined ? (b.waitingRequired ? 1 : 0) : existing.waitingRequired,
+      b.waitingHours ?? existing.waitingHours,
+      b.waitingAmount ?? existing.waitingAmount,
+      b.extraMakeup !== undefined ? (b.extraMakeup ? 1 : 0) : existing.extraMakeup,
+      b.extraMakeupCount ?? existing.extraMakeupCount,
+      b.extraMakeupAmount ?? existing.extraMakeupAmount,
+      b.extraHairdo !== undefined ? (b.extraHairdo ? 1 : 0) : existing.extraHairdo,
+      b.extraHairdoCount ?? existing.extraHairdoCount,
+      b.extraHairdoAmount ?? existing.extraHairdoAmount,
+      b.eventDate ?? existing.eventDate,
+      b.eventTime ?? existing.eventTime,
+      b.notes ?? existing.notes,
+      b.status ?? existing.status,
+      now, req.params.id
+    );
+
+    const updated = await get('SELECT * FROM events WHERE id = ?', req.params.id);
+    res.json({ success: true, data: updated });
+  } catch (err) {
+    console.error('Error updating event:', err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// PUT /api/events/:id/complete — Mark an event as completed
+app.put('/api/events/:id/complete', async (req, res) => {
+  try {
+    const existing = await get('SELECT * FROM events WHERE id = ?', req.params.id);
+    if (!existing) {
+      return res.status(404).json({ success: false, error: 'Event not found' });
+    }
+
+    const now = new Date().toISOString();
+    await run(`UPDATE events SET status = 'completed', updatedAt = ? WHERE id = ?`, now, req.params.id);
+
+    const updated = await get('SELECT * FROM events WHERE id = ?', req.params.id);
+    res.json({ success: true, data: updated });
+  } catch (err) {
+    console.error('Error completing event:', err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// PUT /api/events/:id/cancel — Cancel an event with sub-form data
+app.put('/api/events/:id/cancel', async (req, res) => {
+  try {
+    const existing = await get('SELECT * FROM events WHERE id = ?', req.params.id);
+    if (!existing) {
+      return res.status(404).json({ success: false, error: 'Event not found' });
+    }
+
+    const { cancelDate, cancelReason, moneyOption, moneyAmount } = req.body;
+    const now = new Date().toISOString();
+
+    await run(`
+      UPDATE events SET
+        status = 'cancelled', cancelDate = ?, cancelReason = ?,
+        moneyOption = ?, moneyAmount = ?, updatedAt = ?
+      WHERE id = ?
+    `,
+      cancelDate || new Date().toISOString().split('T')[0],
+      cancelReason || '', moneyOption || '', moneyAmount || 0, now, req.params.id
+    );
+
+    const updated = await get('SELECT * FROM events WHERE id = ?', req.params.id);
+    res.json({ success: true, data: updated });
+  } catch (err) {
+    console.error('Error cancelling event:', err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// PUT /api/events/:id/restore — Restore a cancelled event back to upcoming
+app.put('/api/events/:id/restore', async (req, res) => {
+  try {
+    const existing = await get('SELECT * FROM events WHERE id = ?', req.params.id);
+    if (!existing) {
+      return res.status(404).json({ success: false, error: 'Event not found' });
+    }
+
+    const now = new Date().toISOString();
+    await run(`
+      UPDATE events SET
+        status = 'upcoming', cancelDate = '', cancelReason = '',
+        moneyOption = '', moneyAmount = 0, updatedAt = ?
+      WHERE id = ?
+    `, now, req.params.id);
+
+    const updated = await get('SELECT * FROM events WHERE id = ?', req.params.id);
+    res.json({ success: true, data: updated });
+  } catch (err) {
+    console.error('Error restoring event:', err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// DELETE /api/events/:id — Delete an event (returns deleted data for undo)
+app.delete('/api/events/:id', async (req, res) => {
+  try {
+    const existing = await get('SELECT * FROM events WHERE id = ?', req.params.id);
+    if (!existing) {
+      return res.status(404).json({ success: false, error: 'Event not found' });
+    }
+
+    await run('DELETE FROM events WHERE id = ?', req.params.id);
+    res.json({ success: true, message: 'Event deleted', data: existing });
+  } catch (err) {
+    console.error('Error deleting event:', err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// POST /api/events/restore — Re-insert a previously deleted event (undo)
+app.post('/api/events/restore', async (req, res) => {
+  try {
+    const e = req.body;
+    if (!e.id) {
+      return res.status(400).json({ success: false, error: 'Event data with id is required' });
+    }
+
+    const exists = await get('SELECT id FROM events WHERE id = ?', e.id);
+    if (exists) {
+      const event = await get('SELECT * FROM events WHERE id = ?', e.id);
+      return res.json({ success: true, data: event });
+    }
+
+    await run(`
+      INSERT INTO events (
+        id, clientName, clientPhone, alternativePhone, emailAddress,
+        eventType, country, state, city, buildingName, address, locationDirection,
+        workLocationDifferent, workCountry, workState, workCity,
+        workBuildingName, workAddress, workLocationDirection,
+        typeOfMakeup, packageAmount, advancePaid,
+        touchupRequired, touchupCount, touchupAmount,
+        extraSareeDrapes, sareeDrapesCount, sareeDrapesAmount,
+        waitingRequired, waitingHours, waitingAmount,
+        extraMakeup, extraMakeupCount, extraMakeupAmount,
+        extraHairdo, extraHairdoCount, extraHairdoAmount,
+        eventDate, eventTime, notes, status,
+        cancelDate, cancelReason, moneyOption, moneyAmount,
+        createdAt, updatedAt
+      ) VALUES (
+        ?, ?, ?, ?, ?,
+        ?, ?, ?, ?, ?, ?, ?,
+        ?, ?, ?, ?,
+        ?, ?, ?,
+        ?, ?, ?,
+        ?, ?, ?,
+        ?, ?, ?,
+        ?, ?, ?,
+        ?, ?, ?,
+        ?, ?, ?,
+        ?, ?, ?, ?,
+        ?, ?, ?, ?,
+        ?, ?
+      )
+    `,
+      e.id, e.clientName || '', e.clientPhone || '', e.alternativePhone || '', e.emailAddress || '',
+      e.eventType || '', e.country || '', e.state || '', e.city || '', e.buildingName || '', e.address || '', e.locationDirection || '',
+      e.workLocationDifferent ? 1 : 0, e.workCountry || '', e.workState || '', e.workCity || '',
+      e.workBuildingName || '', e.workAddress || '', e.workLocationDirection || '',
+      e.typeOfMakeup || '', e.packageAmount || 0, e.advancePaid || 0,
+      e.touchupRequired ? 1 : 0, e.touchupCount || 0, e.touchupAmount || 0,
+      e.extraSareeDrapes ? 1 : 0, e.sareeDrapesCount || 0, e.sareeDrapesAmount || 0,
+      e.waitingRequired ? 1 : 0, e.waitingHours || 0, e.waitingAmount || 0,
+      e.extraMakeup ? 1 : 0, e.extraMakeupCount || 0, e.extraMakeupAmount || 0,
+      e.extraHairdo ? 1 : 0, e.extraHairdoCount || 0, e.extraHairdoAmount || 0,
+      e.eventDate || '', e.eventTime || '', e.notes || '', e.status || 'upcoming',
+      e.cancelDate || '', e.cancelReason || '', e.moneyOption || '', e.moneyAmount || 0,
+      e.createdAt || new Date().toISOString(), new Date().toISOString()
+    );
+
+    const restored = await get('SELECT * FROM events WHERE id = ?', e.id);
+    res.status(201).json({ success: true, data: restored });
+  } catch (err) {
+    console.error('Error restoring event:', err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// ─────────────────────────────────────────────
+// TRAVEL API
+// ─────────────────────────────────────────────
+
+// GET /api/travel — List travel records (optionally filter by eventId, eventStatus)
+app.get('/api/travel', async (req, res) => {
+  try {
+    const { eventId, travelMode, travelStatus, eventStatus } = req.query;
+    let sql = `
+      SELECT t.*, e.clientName, e.eventType, e.eventDate, e.city, e.status AS eventStatus
+      FROM travel t
+      LEFT JOIN events e ON t.eventId = e.id
+    `;
+    const params = [];
+    const conditions = [];
+
+    if (eventId) {
+      conditions.push('t.eventId = ?');
+      params.push(eventId);
+    }
+    if (travelMode) {
+      conditions.push('t.travelMode = ?');
+      params.push(travelMode);
+    }
+    if (travelStatus) {
+      conditions.push('t.travelStatus = ?');
+      params.push(travelStatus);
+    }
+    if (eventStatus) {
+      conditions.push('e.status = ?');
+      params.push(eventStatus);
+    }
+    if (conditions.length > 0) {
+      sql += ' WHERE ' + conditions.join(' AND ');
+    }
+    sql += ' ORDER BY t.travelDate ASC, t.legOrder ASC';
+
+    const records = await all(sql, ...params);
+    res.json({ success: true, data: records });
+  } catch (err) {
+    console.error('Error fetching travel records:', err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// GET /api/travel/summary/:eventId — Travel summary for an event
+app.get('/api/travel/summary/:eventId', async (req, res) => {
+  try {
+    const records = await all(
+      `SELECT * FROM travel WHERE eventId = ? ORDER BY legOrder ASC, travelDate ASC`,
+      req.params.eventId
+    );
+
+    const totalCost = records.reduce((sum, r) => sum + (r.totalCost || 0), 0);
+    const legCount = records.length;
+
+    res.json({
+      success: true,
+      data: { records, totalCost, legCount },
+    });
+  } catch (err) {
+    console.error('Error fetching travel summary:', err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// GET /api/travel/:id — Single travel record
+app.get('/api/travel/:id', async (req, res) => {
+  try {
+    const record = await get(
+      `SELECT t.*, e.clientName, e.eventType, e.eventDate, e.city
+       FROM travel t LEFT JOIN events e ON t.eventId = e.id
+       WHERE t.id = ?`,
+      req.params.id
+    );
+    if (!record) {
+      return res.status(404).json({ success: false, error: 'Travel record not found' });
+    }
+    res.json({ success: true, data: record });
+  } catch (err) {
+    console.error('Error fetching travel record:', err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// POST /api/travel — Create a travel record
+app.post('/api/travel', async (req, res) => {
+  try {
+    const b = req.body;
+
+    if (!b.eventId || !b.travelMode) {
+      return res.status(400).json({
+        success: false,
+        error: 'eventId and travelMode are required',
+      });
+    }
+
+    // Validate event exists
+    const event = await get('SELECT id FROM events WHERE id = ?', b.eventId);
+    if (!event) {
+      return res.status(404).json({ success: false, error: 'Event not found' });
+    }
+
+    // Auto-assign legOrder
+    const maxLeg = await get(
+      'SELECT MAX(legOrder) as maxLeg FROM travel WHERE eventId = ?',
+      b.eventId
+    );
+    const legOrder = b.legOrder || ((maxLeg?.maxLeg || 0) + 1);
+
+    const id = uuidv4();
+    const now = new Date().toISOString();
+
+    await run(`
+      INSERT INTO travel (
+        id, eventId, legOrder, travelMode,
+        travelStatus, bookingStatus, travelDate, returnDate,
+        totalCost, notes, attachmentPath,
+        numTravellers,
+        departureCity, arrivalCity, airlineName,
+        trainNumber, trainName, departureStation, arrivalStation,
+        cabProvider, pickupLocation, dropLocation, estimatedFare, driverContact,
+        startingLocation, destination, distance, fuelCost, tollCharges, parkingCharges,
+        busOperator, departureLocation, arrivalLocation,
+        bookedByArtist,
+        createdAt, updatedAt
+      ) VALUES (
+        ?, ?, ?, ?,
+        ?, ?, ?, ?,
+        ?, ?, ?,
+        ?,
+        ?, ?, ?,
+        ?, ?, ?, ?,
+        ?, ?, ?, ?, ?,
+        ?, ?, ?, ?, ?, ?,
+        ?, ?, ?,
+        ?,
+        ?, ?
+      )
+    `,
+      id, b.eventId, legOrder, b.travelMode,
+      b.travelStatus || 'planned', b.bookingStatus || 'not_booked',
+      b.travelDate || '', b.returnDate || '',
+      b.totalCost || 0, b.notes || '', b.attachmentPath || '',
+      b.numTravellers || 1,
+      b.departureCity || '', b.arrivalCity || '', b.airlineName || '',
+      b.trainNumber || '', b.trainName || '', b.departureStation || '', b.arrivalStation || '',
+      b.cabProvider || '', b.pickupLocation || '', b.dropLocation || '',
+      b.estimatedFare || 0, b.driverContact || '',
+      b.startingLocation || '', b.destination || '', b.distance || 0,
+      b.fuelCost || 0, b.tollCharges || 0, b.parkingCharges || 0,
+      b.busOperator || '', b.departureLocation || '', b.arrivalLocation || '',
+      b.bookedByArtist ? 1 : 0,
+      now, now
+    );
+
+    const newRecord = await get('SELECT * FROM travel WHERE id = ?', id);
+    res.status(201).json({ success: true, data: newRecord });
+  } catch (err) {
+    console.error('Error creating travel record:', err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// PUT /api/travel/:id — Update a travel record
+app.put('/api/travel/:id', async (req, res) => {
+  try {
+    const existing = await get('SELECT * FROM travel WHERE id = ?', req.params.id);
+    if (!existing) {
+      return res.status(404).json({ success: false, error: 'Travel record not found' });
+    }
+
+    const b = req.body;
+    const now = new Date().toISOString();
+
+    await run(`
+      UPDATE travel SET
+        travelMode = ?, legOrder = ?,
+        travelStatus = ?, bookingStatus = ?,
+        travelDate = ?, returnDate = ?,
+        totalCost = ?, notes = ?, attachmentPath = ?,
+        numTravellers = ?,
+        departureCity = ?, arrivalCity = ?, airlineName = ?,
+        trainNumber = ?, trainName = ?, departureStation = ?, arrivalStation = ?,
+        cabProvider = ?, pickupLocation = ?, dropLocation = ?,
+        estimatedFare = ?, driverContact = ?,
+        startingLocation = ?, destination = ?, distance = ?,
+        fuelCost = ?, tollCharges = ?, parkingCharges = ?,
+        busOperator = ?, departureLocation = ?, arrivalLocation = ?,
+        bookedByArtist = ?,
+        updatedAt = ?
+      WHERE id = ?
+    `,
+      b.travelMode ?? existing.travelMode,
+      b.legOrder ?? existing.legOrder,
+      b.travelStatus ?? existing.travelStatus,
+      b.bookingStatus ?? existing.bookingStatus,
+      b.travelDate ?? existing.travelDate,
+      b.returnDate ?? existing.returnDate,
+      b.totalCost ?? existing.totalCost,
+      b.notes ?? existing.notes,
+      b.attachmentPath ?? existing.attachmentPath,
+      b.numTravellers ?? existing.numTravellers,
+      b.departureCity ?? existing.departureCity,
+      b.arrivalCity ?? existing.arrivalCity,
+      b.airlineName ?? existing.airlineName,
+      b.trainNumber ?? existing.trainNumber,
+      b.trainName ?? existing.trainName,
+      b.departureStation ?? existing.departureStation,
+      b.arrivalStation ?? existing.arrivalStation,
+      b.cabProvider ?? existing.cabProvider,
+      b.pickupLocation ?? existing.pickupLocation,
+      b.dropLocation ?? existing.dropLocation,
+      b.estimatedFare ?? existing.estimatedFare,
+      b.driverContact ?? existing.driverContact,
+      b.startingLocation ?? existing.startingLocation,
+      b.destination ?? existing.destination,
+      b.distance ?? existing.distance,
+      b.fuelCost ?? existing.fuelCost,
+      b.tollCharges ?? existing.tollCharges,
+      b.parkingCharges ?? existing.parkingCharges,
+      b.busOperator ?? existing.busOperator,
+      b.departureLocation ?? existing.departureLocation,
+      b.arrivalLocation ?? existing.arrivalLocation,
+      b.bookedByArtist !== undefined ? (b.bookedByArtist ? 1 : 0) : existing.bookedByArtist,
+      now, req.params.id
+    );
+
+    const updated = await get('SELECT * FROM travel WHERE id = ?', req.params.id);
+    res.json({ success: true, data: updated });
+  } catch (err) {
+    console.error('Error updating travel record:', err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// DELETE /api/travel/:id — Delete a travel record
+app.delete('/api/travel/:id', async (req, res) => {
+  try {
+    const existing = await get('SELECT * FROM travel WHERE id = ?', req.params.id);
+    if (!existing) {
+      return res.status(404).json({ success: false, error: 'Travel record not found' });
+    }
+
+    await run('DELETE FROM travel WHERE id = ?', req.params.id);
+    res.json({ success: true, message: 'Travel record deleted', data: existing });
+  } catch (err) {
+    console.error('Error deleting travel record:', err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// ─────────────────────────────────────────────
+// SETTINGS API
+// ─────────────────────────────────────────────
+
+// GET /api/settings — Get all settings as key → value object
+app.get('/api/settings', async (req, res) => {
+  try {
+    const rows = await all('SELECT key, value FROM settings');
+    const data = {};
+    rows.forEach(r => { data[r.key] = r.value; });
+    res.json({ success: true, data });
+  } catch (err) {
+    console.error('Error fetching settings:', err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// PUT /api/settings — Upsert one or many settings
+app.put('/api/settings', async (req, res) => {
+  try {
+    const updates = req.body;
+    const now = new Date().toISOString();
+    await transaction(async (client) => {
+      for (const [k, v] of Object.entries(updates)) {
+        await client.run(
+          `INSERT INTO settings (key, value, updatedAt)
+           VALUES (?, ?, ?)
+           ON CONFLICT(key) DO UPDATE SET value = EXCLUDED.value, updatedAt = EXCLUDED.updatedAt`,
+          k, String(v), now
+        );
+      }
+    });
+
+    const rows = await all('SELECT key, value FROM settings');
+    const data = {};
+    rows.forEach(r => { data[r.key] = r.value; });
+    res.json({ success: true, data });
+  } catch (err) {
+    console.error('Error updating settings:', err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// ─────────────────────────────────────────────
+// FEEDBACK API
+// ─────────────────────────────────────────────
+
+// POST /api/feedback — Submit feedback
+app.post('/api/feedback', async (req, res) => {
+  try {
+    const { subject, message } = req.body;
+    if (!message || !message.trim()) {
+      return res.status(400).json({ success: false, error: 'Message is required' });
+    }
+    const id = uuidv4();
+    await run('INSERT INTO feedback (id, subject, message, createdAt) VALUES (?, ?, ?, ?)',
+      id, (subject || '').trim(), message.trim(), new Date().toISOString()
+    );
+    res.json({ success: true, data: { id, subject: subject || '', message } });
+  } catch (err) {
+    console.error('Error submitting feedback:', err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// ─────────────────────────────────────────────
+// DATA MANAGEMENT
+// ─────────────────────────────────────────────
+
+// DELETE /api/data/clear — Clear all app data and reset settings
+app.delete('/api/data/clear', async (req, res) => {
+  try {
+    await transaction(async (client) => {
+      await client.run('DELETE FROM notifications');
+      await client.run('DELETE FROM travel');
+      await client.run('DELETE FROM events');
+      await client.run('DELETE FROM feedback');
+      await client.run('DELETE FROM settings');
+      // Re-seed defaults
+      const defaults = {
+        themeColor: '#7B2D52', colorMode: 'light', fontSize: 'medium',
+        notificationsEnabled: 'false', notifyBefore: '60', notifyTimes: '1',
+        passcodeLock: 'false', passcode: '', mapsEnabled: 'true',
+      };
+      for (const [k, v] of Object.entries(defaults)) {
+        await client.run('INSERT INTO settings (key, value) VALUES (?, ?)', k, v);
+      }
+    });
+    res.json({ success: true, message: 'All app data cleared and settings reset' });
+  } catch (err) {
+    console.error('Error clearing data:', err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// ─────────────────────────────────────────────
+// AUTH API
+// ─────────────────────────────────────────────
+
+function generateOTP() {
+  return String(Math.floor(100000 + Math.random() * 900000));
+}
+
+// POST /api/auth/signup — Register with email, send OTP
+app.post('/api/auth/signup', async (req, res) => {
+  try {
+    const { email, name } = req.body;
+    if (!email || !email.trim()) {
+      return res.status(400).json({ success: false, error: 'Email is required' });
+    }
+    const cleanEmail = email.trim().toLowerCase();
+
+    // Check if user already exists and is verified
+    const existing = await get('SELECT * FROM users WHERE email = ?', cleanEmail);
+    if (existing && existing.verified) {
+      return res.status(409).json({ success: false, error: 'An account with this email already exists. Please login.' });
+    }
+
+    // Create or update user record
+    const now = new Date().toISOString();
+    if (!existing) {
+      const id = uuidv4();
+      await run('INSERT INTO users (id, email, name, createdAt, updatedAt) VALUES (?, ?, ?, ?, ?)', id, cleanEmail, (name || '').trim(), now, now);
+    } else {
+      await run('UPDATE users SET name = ?, updatedAt = ? WHERE email = ?', (name || existing.name || '').trim(), now, cleanEmail);
+    }
+
+    // Invalidate old OTPs
+    await run('UPDATE otp SET used = 1 WHERE email = ? AND used = 0', cleanEmail);
+
+    // Generate and store new OTP (expires in 10 min)
+    const code = generateOTP();
+    const expiresAt = new Date(Date.now() + 10 * 60 * 1000).toISOString();
+    await run('INSERT INTO otp (email, code, purpose, expiresAt, createdAt) VALUES (?, ?, ?, ?, ?)', cleanEmail, code, 'verify', expiresAt, now);
+
+    // In production, send email here. For dev, log to console.
+    console.log(`\n📧 OTP for ${cleanEmail}: ${code}\n`);
+
+    res.json({ success: true, message: 'OTP sent to your email' });
+  } catch (err) {
+    console.error('Error in signup:', err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// POST /api/auth/verify — Verify OTP and activate account
+app.post('/api/auth/verify', async (req, res) => {
+  try {
+    const { email, code } = req.body;
+    if (!email || !code) {
+      return res.status(400).json({ success: false, error: 'Email and OTP code are required' });
+    }
+    const cleanEmail = email.trim().toLowerCase();
+
+    // Find valid OTP
+    const otp = await get(
+      `SELECT * FROM otp WHERE email = ? AND code = ? AND used = 0 AND purpose = 'verify'
+       ORDER BY createdAt DESC LIMIT 1`,
+      cleanEmail, code.trim()
+    );
+
+    if (!otp) {
+      return res.status(400).json({ success: false, error: 'Invalid OTP. Please try again.' });
+    }
+
+    // Check expiry
+    if (new Date(otp.expiresAt) < new Date()) {
+      await run('UPDATE otp SET used = 1 WHERE id = ?', otp.id);
+      return res.status(400).json({ success: false, error: 'OTP has expired. Please request a new one.' });
+    }
+
+    // Mark OTP as used
+    await run('UPDATE otp SET used = 1 WHERE id = ?', otp.id);
+
+    // Verify the user
+    const now = new Date().toISOString();
+    await run('UPDATE users SET verified = 1, updatedAt = ? WHERE email = ?', now, cleanEmail);
+
+    const user = await get('SELECT id, email, name, verified, createdAt FROM users WHERE email = ?', cleanEmail);
+    res.json({ success: true, data: user });
+  } catch (err) {
+    console.error('Error verifying OTP:', err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// POST /api/auth/login — Login with email, send OTP
+app.post('/api/auth/login', async (req, res) => {
+  try {
+    const { email } = req.body;
+    if (!email || !email.trim()) {
+      return res.status(400).json({ success: false, error: 'Email is required' });
+    }
+    const cleanEmail = email.trim().toLowerCase();
+
+    const user = await get('SELECT * FROM users WHERE email = ? AND verified = 1', cleanEmail);
+    if (!user) {
+      return res.status(404).json({ success: false, error: 'No account found with this email. Please sign up first.' });
+    }
+
+    // Invalidate old OTPs
+    await run('UPDATE otp SET used = 1 WHERE email = ? AND used = 0', cleanEmail);
+
+    // Generate and store new OTP
+    const code = generateOTP();
+    const now = new Date().toISOString();
+    const expiresAt = new Date(Date.now() + 10 * 60 * 1000).toISOString();
+    await run('INSERT INTO otp (email, code, purpose, expiresAt, createdAt) VALUES (?, ?, ?, ?, ?)', cleanEmail, code, 'login', expiresAt, now);
+
+    console.log(`\n📧 Login OTP for ${cleanEmail}: ${code}\n`);
+
+    res.json({ success: true, message: 'OTP sent to your email' });
+  } catch (err) {
+    console.error('Error in login:', err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// POST /api/auth/login/verify — Verify login OTP
+app.post('/api/auth/login/verify', async (req, res) => {
+  try {
+    const { email, code } = req.body;
+    if (!email || !code) {
+      return res.status(400).json({ success: false, error: 'Email and OTP code are required' });
+    }
+    const cleanEmail = email.trim().toLowerCase();
+
+    const otp = await get(
+      `SELECT * FROM otp WHERE email = ? AND code = ? AND used = 0 AND purpose = 'login'
+       ORDER BY createdAt DESC LIMIT 1`,
+      cleanEmail, code.trim()
+    );
+
+    if (!otp) {
+      return res.status(400).json({ success: false, error: 'Invalid OTP. Please try again.' });
+    }
+
+    if (new Date(otp.expiresAt) < new Date()) {
+      await run('UPDATE otp SET used = 1 WHERE id = ?', otp.id);
+      return res.status(400).json({ success: false, error: 'OTP has expired. Please request a new one.' });
+    }
+
+    await run('UPDATE otp SET used = 1 WHERE id = ?', otp.id);
+
+    const user = await get('SELECT id, email, name, verified, createdAt FROM users WHERE email = ?', cleanEmail);
+    res.json({ success: true, data: user });
+  } catch (err) {
+    console.error('Error verifying login OTP:', err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// POST /api/auth/resend — Resend OTP for either purpose
+app.post('/api/auth/resend', async (req, res) => {
+  try {
+    const { email, purpose } = req.body;
+    if (!email) {
+      return res.status(400).json({ success: false, error: 'Email is required' });
+    }
+    const cleanEmail = email.trim().toLowerCase();
+    const otpPurpose = purpose || 'verify';
+
+    // Invalidate old OTPs
+    await run('UPDATE otp SET used = 1 WHERE email = ? AND used = 0', cleanEmail);
+
+    const code = generateOTP();
+    const now = new Date().toISOString();
+    const expiresAt = new Date(Date.now() + 10 * 60 * 1000).toISOString();
+    await run('INSERT INTO otp (email, code, purpose, expiresAt, createdAt) VALUES (?, ?, ?, ?, ?)', cleanEmail, code, otpPurpose, expiresAt, now);
+
+    console.log(`\n📧 Resent OTP for ${cleanEmail}: ${code}\n`);
+
+    res.json({ success: true, message: 'A new OTP has been sent to your email' });
+  } catch (err) {
+    console.error('Error resending OTP:', err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// GET /api/auth/me/:email — Get user profile
+app.get('/api/auth/me/:email', async (req, res) => {
+  try {
+    const cleanEmail = req.params.email.trim().toLowerCase();
+    const user = await get('SELECT id, email, name, verified, createdAt FROM users WHERE email = ? AND verified = 1', cleanEmail);
+    if (!user) {
+      return res.status(404).json({ success: false, error: 'User not found' });
+    }
+    res.json({ success: true, data: user });
+  } catch (err) {
+    console.error('Error fetching user:', err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// ─────────────────────────────────────────────
+// DASHBOARD API
+// ─────────────────────────────────────────────
+
+app.get('/api/dashboard', async (req, res) => {
+  try {
+    const today = new Date().toISOString().split('T')[0];
+    const now = new Date().toISOString();
+
+    // Auto-complete past upcoming events
+    await run(
+      `UPDATE events SET status = 'completed', updatedAt = ?
+       WHERE status = 'upcoming' AND eventDate != '' AND eventDate <= ?`,
+      now, today
+    );
+
+    // Today's events
+    const todayEvents = await all(
+      `SELECT id, clientName, eventType, city, eventTime, status
+       FROM events WHERE eventDate = ? AND status != 'cancelled'
+       ORDER BY eventTime ASC`,
+      today
+    );
+
+    // Upcoming events (next 5, after today)
+    const upcomingEvents = await all(
+      `SELECT id, clientName, eventType, city, eventDate, eventTime, status
+       FROM events WHERE eventDate > ? AND status = 'upcoming'
+       ORDER BY eventDate ASC, eventTime ASC LIMIT 5`,
+      today
+    );
+
+    // This month stats
+    const monthStart = today.substring(0, 7) + '-01';
+    const monthEnd = today.substring(0, 7) + '-31';
+
+    const monthEvents = await get(
+      `SELECT COUNT(*) as count FROM events
+       WHERE eventDate >= ? AND eventDate <= ? AND status != 'cancelled'`,
+      monthStart, monthEnd
+    );
+
+    const monthEarnings = await get(
+      `SELECT COALESCE(SUM(packageAmount), 0) as total FROM events
+       WHERE eventDate >= ? AND eventDate <= ? AND status != 'cancelled'`,
+      monthStart, monthEnd
+    );
+
+    const pendingPayments = await get(
+      `SELECT COALESCE(SUM(packageAmount - advancePaid), 0) as total FROM events
+       WHERE status = 'upcoming' AND packageAmount > advancePaid`
+    );
+
+    // Upcoming travel needing attention (planned/not booked)
+    const travelAlerts = await all(
+      `SELECT t.id, t.travelMode, t.travelDate, t.travelStatus, t.bookingStatus,
+              e.clientName, e.eventType, e.city
+       FROM travel t LEFT JOIN events e ON t.eventId = e.id
+       WHERE t.travelDate >= ? AND (t.travelStatus = 'planned' OR t.bookingStatus = 'not_booked')
+       AND e.status = 'upcoming'
+       ORDER BY t.travelDate ASC LIMIT 5`,
+      today
+    );
+
+    // Total counts for summary
+    const totalUpcoming = await get(
+      `SELECT COUNT(*) as count FROM events WHERE status = 'upcoming'`
+    );
+
+    const totalCompleted = await get(
+      `SELECT COUNT(*) as count FROM events WHERE status = 'completed'`
+    );
+
+    res.json({
+      success: true,
+      data: {
+        todayEvents,
+        upcomingEvents,
+        stats: {
+          monthEvents: monthEvents.count,
+          monthEarnings: monthEarnings.total,
+          pendingPayments: pendingPayments.total,
+          totalUpcoming: totalUpcoming.count,
+          totalCompleted: totalCompleted.count,
+        },
+        travelAlerts,
+      },
+    });
+  } catch (err) {
+    console.error('Error fetching dashboard:', err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// ─────────────────────────────────────────────
+// NOTIFICATIONS API
+// ─────────────────────────────────────────────
+
+// GET /api/notifications — list notification history
+// Optional query: ?email=...&status=sent|pending|failed&limit=50
+app.get('/api/notifications', async (req, res) => {
+  try {
+    const { email, status, limit } = req.query;
+    let sql = 'SELECT * FROM notifications';
+    const conditions = [];
+    const params = [];
+
+    if (email) { conditions.push('email = ?'); params.push(email); }
+    if (status) { conditions.push('status = ?'); params.push(status); }
+    if (conditions.length) sql += ' WHERE ' + conditions.join(' AND ');
+    sql += ' ORDER BY scheduledFor DESC';
+    sql += ` LIMIT ${parseInt(limit) || 50}`;
+
+    const rows = await all(sql, ...params);
+    res.json(rows);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// GET /api/notifications/stats — quick summary
+app.get('/api/notifications/stats', async (req, res) => {
+  try {
+    const total = (await get('SELECT COUNT(*) as count FROM notifications')).count;
+    const sent = (await get("SELECT COUNT(*) as count FROM notifications WHERE status = 'sent'")).count;
+    const pending = (await get("SELECT COUNT(*) as count FROM notifications WHERE status = 'pending'")).count;
+    const failed = (await get("SELECT COUNT(*) as count FROM notifications WHERE status = 'failed'")).count;
+    res.json({ total, sent, pending, failed });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Health check
+app.get('/api/health', (req, res) => {
+  res.json({ status: 'ok', timestamp: new Date().toISOString() });
+});
+
+// Start server
+async function start() {
+  await initializeDatabase();
+  app.listen(PORT, '0.0.0.0', () => {
+    console.log(`🚀 MUA Planner Backend running on http://localhost:${PORT}`);
+    // Start notification scheduler after server is up
+    startNotificationScheduler();
+  });
+}
+start().catch(err => { console.error('Failed to start:', err); process.exit(1); });
