@@ -35,6 +35,7 @@ const CAMEL_COLUMNS = [
   'eventStatus','maxLeg',
   'memberName','teamRole','amount','amountPaid','paymentStatus',
   'defaultRole','contactId',
+  'eventName','eventCity',
 ];
 const COL_MAP = {};
 for (const c of CAMEL_COLUMNS) COL_MAP[c.toLowerCase()] = c;
