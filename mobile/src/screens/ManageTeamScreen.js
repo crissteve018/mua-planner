@@ -56,7 +56,7 @@ export default function ManageTeamScreen() {
   const openAdd = () => {
     setEditing(null);
     setName('');
-    setRole('assistant');
+    setRole('');
     setPhone('');
     setModalVisible(true);
   };
@@ -71,6 +71,7 @@ export default function ManageTeamScreen() {
 
   const handleSave = async () => {
     if (!name.trim()) return Alert.alert('Required', 'Please enter a name.');
+    if (!role) return Alert.alert('Required', 'Please select a role.');
     setSaving(true);
     try {
       const payload = { name: name.trim(), defaultRole: role, phone: phone.trim() };
@@ -192,7 +193,7 @@ export default function ManageTeamScreen() {
               autoFocus
             />
 
-            <Text style={[styles.label, { color: C.textSecondary }]}>Default Role</Text>
+            <Text style={[styles.label, { color: C.textSecondary }]}>Role</Text>
             <TouchableOpacity
               style={[styles.picker, { borderColor: C.border, backgroundColor: C.inputBg }]}
               onPress={() => setRolePickerVisible(true)}

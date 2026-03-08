@@ -421,7 +421,7 @@ export default function AddTeamScreen({ navigation, route }) {
             <>
               <Ionicons name="checkmark-circle" size={20} color="#FFF" />
               <Text style={styles.saveBtnText}>
-                Save {members.length > 1 ? `${members.length} Members` : 'Team Member'}
+                Save Team
               </Text>
             </>
           )}
