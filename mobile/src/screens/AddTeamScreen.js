@@ -15,7 +15,7 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { getAllEvents } from '../api/events';
-import { createTeamMember, getTeamContacts } from '../api/team';
+import { createTeamMember, getTeamContacts, createTeamContact } from '../api/team';
 import { TEAM_ROLES, TEAM_ROLE_MAP } from '../constants';
 import { useTheme } from '../context/SettingsContext';
 
@@ -79,6 +79,14 @@ export default function AddTeamScreen({ navigation, route }) {
   const [rolePickerVisible, setRolePickerVisible] = useState(false);
   const [rolePickerIndex, setRolePickerIndex] = useState(0);
 
+  // Add new contact inline
+  const [addContactVisible, setAddContactVisible] = useState(false);
+  const [newContactName, setNewContactName] = useState('');
+  const [newContactRole, setNewContactRole] = useState('assistant');
+  const [newContactPhone, setNewContactPhone] = useState('');
+  const [newContactRolePicker, setNewContactRolePicker] = useState(false);
+  const [savingContact, setSavingContact] = useState(false);
+
   useEffect(() => {
     (async () => {
       try {
@@ -122,6 +130,39 @@ export default function AddTeamScreen({ navigation, route }) {
       updated[index] = { ...updated[index], [field]: value };
       return updated;
     });
+  };
+
+  const openAddContact = () => {
+    const memberRole = members[namePickerIndex]?.teamRole;
+    setNewContactName(nameSearch.trim());
+    setNewContactRole(memberRole || 'assistant');
+    setNewContactPhone('');
+    setNamePickerVisible(false);
+    setAddContactVisible(true);
+  };
+
+  const handleSaveContact = async () => {
+    if (!newContactName.trim()) return Alert.alert('Required', 'Please enter a name.');
+    setSavingContact(true);
+    try {
+      const res = await createTeamContact({ name: newContactName.trim(), defaultRole: newContactRole, phone: newContactPhone.trim() });
+      if (res.success) {
+        const saved = res.data;
+        const refreshed = await getTeamContacts();
+        if (refreshed.success) setContacts(refreshed.data);
+        updateMember(namePickerIndex, 'memberName', saved.name);
+        updateMember(namePickerIndex, 'contactId', saved.id);
+        if (!members[namePickerIndex]?.teamRole) updateMember(namePickerIndex, 'teamRole', saved.defaultRole);
+        setAddContactVisible(false);
+        setNameSearch('');
+      } else {
+        Alert.alert('Error', res.error || 'Could not save contact.');
+      }
+    } catch (err) {
+      Alert.alert('Error', 'Could not save contact.');
+    } finally {
+      setSavingContact(false);
+    }
   };
 
   const removeMember = (index) => {
@@ -535,18 +576,125 @@ export default function AddTeamScreen({ navigation, route }) {
                   </TouchableOpacity>
                 );
               }}
+              ListFooterComponent={
+                <TouchableOpacity
+                  style={[styles.addContactRow, { borderTopColor: C.borderLight }]}
+                  onPress={openAddContact}
+                >
+                  <Ionicons name="add-circle" size={20} color={C.primary} />
+                  <Text style={[styles.addContactText, { color: C.primary }]}>Add New Contact</Text>
+                </TouchableOpacity>
+              }
               ListEmptyComponent={
                 !nameSearch.trim() ? (
                   <View style={{ padding: 24, alignItems: 'center' }}>
                     <Ionicons name="people-outline" size={32} color={C.textMuted} />
                     <Text style={[styles.emptyText, { color: C.textMuted }]}>No contacts yet</Text>
-                    <Text style={[styles.emptyHint, { color: C.textMuted }]}>
-                      Add team members from Home → My Team
-                    </Text>
+                    <TouchableOpacity onPress={openAddContact} style={{ marginTop: 12 }}>
+                      <Text style={[{ color: C.primary, fontWeight: '600', fontSize: 14 }]}>+ Add New Contact</Text>
+                    </TouchableOpacity>
                   </View>
                 ) : null
               }
             />
+          </View>
+        </View>
+      </Modal>
+
+      {/* ── Add New Contact Modal ── */}
+      <Modal visible={addContactVisible} animationType="slide" transparent>
+        <KeyboardAvoidingView
+          style={styles.modalOverlay}
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        >
+          <View style={[styles.modalContent, { backgroundColor: C.surface }]}>
+            <View style={styles.modalHeader}>
+              <Text style={[styles.modalTitle, { color: C.text }]}>Add New Contact</Text>
+              <TouchableOpacity onPress={() => setAddContactVisible(false)}>
+                <Ionicons name="close" size={24} color={C.textMuted} />
+              </TouchableOpacity>
+            </View>
+
+            <Text style={[styles.label, { color: C.textSecondary }]}>Name</Text>
+            <TextInput
+              style={[styles.input, { borderColor: C.border, backgroundColor: C.inputBg, color: C.text }]}
+              placeholder="Enter name"
+              placeholderTextColor={C.textMuted}
+              value={newContactName}
+              onChangeText={setNewContactName}
+              autoFocus
+            />
+
+            <Text style={[styles.label, { color: C.textSecondary }]}>Default Role</Text>
+            <TouchableOpacity
+              style={[styles.picker, { borderColor: C.border, backgroundColor: C.inputBg }]}
+              onPress={() => setNewContactRolePicker(true)}
+            >
+              {TEAM_ROLE_MAP[newContactRole] ? (
+                <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1, gap: 8 }}>
+                  <Ionicons name={TEAM_ROLE_MAP[newContactRole].icon} size={16} color={TEAM_ROLE_MAP[newContactRole].color} />
+                  <Text style={[styles.pickerText, { color: C.text }]}>{TEAM_ROLE_MAP[newContactRole].label}</Text>
+                </View>
+              ) : (
+                <Text style={[styles.pickerText, { color: C.textMuted }]}>Select role…</Text>
+              )}
+              <Ionicons name="chevron-down" size={18} color={C.textMuted} />
+            </TouchableOpacity>
+
+            <Text style={[styles.label, { color: C.textSecondary }]}>Phone (optional)</Text>
+            <TextInput
+              style={[styles.input, { borderColor: C.border, backgroundColor: C.inputBg, color: C.text }]}
+              placeholder="Phone number"
+              placeholderTextColor={C.textMuted}
+              value={newContactPhone}
+              onChangeText={setNewContactPhone}
+              keyboardType="phone-pad"
+            />
+
+            <TouchableOpacity
+              style={[styles.saveBtn, { backgroundColor: C.primary, opacity: savingContact ? 0.6 : 1 }]}
+              onPress={handleSaveContact}
+              disabled={savingContact}
+            >
+              {savingContact ? (
+                <ActivityIndicator color="#FFF" />
+              ) : (
+                <Text style={styles.saveBtnText}>Add Contact</Text>
+              )}
+            </TouchableOpacity>
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
+
+      {/* ── New Contact Role Picker ── */}
+      <Modal visible={newContactRolePicker} animationType="slide" transparent>
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalContent, { backgroundColor: C.surface }]}>
+            <View style={styles.modalHeader}>
+              <Text style={[styles.modalTitle, { color: C.text }]}>Select Role</Text>
+              <TouchableOpacity onPress={() => setNewContactRolePicker(false)}>
+                <Ionicons name="close" size={24} color={C.textMuted} />
+              </TouchableOpacity>
+            </View>
+            {TEAM_ROLES.map((r) => {
+              const active = newContactRole === r.key;
+              return (
+                <TouchableOpacity
+                  key={r.key}
+                  style={[styles.rolePickerItem, {
+                    borderBottomColor: C.borderLight,
+                    backgroundColor: active ? r.color + '12' : 'transparent',
+                  }]}
+                  onPress={() => { setNewContactRole(r.key); setNewContactRolePicker(false); }}
+                >
+                  <View style={[styles.rolePickerIcon, { backgroundColor: r.color + '18' }]}>
+                    <Ionicons name={r.icon} size={20} color={r.color} />
+                  </View>
+                  <Text style={[styles.rolePickerLabel, { color: active ? r.color : C.text }]}>{r.label}</Text>
+                  {active && <Ionicons name="checkmark" size={20} color={r.color} />}
+                </TouchableOpacity>
+              );
+            })}
           </View>
         </View>
       </Modal>
@@ -606,6 +754,11 @@ const styles = StyleSheet.create({
   modalItemSub: { fontSize: 12, marginTop: 2 },
   emptyText: { textAlign: 'center', paddingVertical: 10, fontSize: 14 },
   emptyHint: { textAlign: 'center', fontSize: 12, marginTop: 4 },
+  addContactRow: {
+    flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 14,
+    borderTopWidth: 1, marginTop: 4,
+  },
+  addContactText: { fontSize: 14, fontWeight: '700' },
   rolePickerItem: {
     flexDirection: 'row', alignItems: 'center', paddingVertical: 14, paddingHorizontal: 4,
     borderBottomWidth: 1, gap: 12,
