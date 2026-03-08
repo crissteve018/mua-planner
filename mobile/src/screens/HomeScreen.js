@@ -139,7 +139,7 @@ export default function HomeScreen({ navigation }) {
       {/* ── Today's Schedule ── */}
       <View style={styles.section}>
         <View style={styles.sectionHeader}>
-          <Text style={[styles.sectionTitle, { color: C.text }]}>📅 Today's Schedule</Text>
+          <Text style={[styles.sectionTitle, { color: C.text }]}>Today's Schedule</Text>
           <View style={[styles.badge, { backgroundColor: C.primaryLight }]}>
             <Text style={[styles.badgeText, { color: C.primary }]}>{todayEvents.length}</Text>
           </View>
@@ -191,7 +191,7 @@ export default function HomeScreen({ navigation }) {
       {upcomingEvents.length > 0 && (
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
-            <Text style={[styles.sectionTitle, { color: C.text }]}>🔮 Upcoming</Text>
+            <Text style={[styles.sectionTitle, { color: C.text }]}>Upcoming</Text>
             <TouchableOpacity onPress={() => navigation.navigate('EventsTab')}>
               <Text style={[styles.seeAll, { color: C.primary }]}>See All</Text>
             </TouchableOpacity>
@@ -237,7 +237,7 @@ export default function HomeScreen({ navigation }) {
       {travelAlerts.length > 0 && (
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
-            <Text style={[styles.sectionTitle, { color: C.text }]}>✈️ Travel Alerts</Text>
+            <Text style={[styles.sectionTitle, { color: C.text }]}>Travel Alerts</Text>
             <TouchableOpacity onPress={() => navigation.navigate('EventsTab')}>
               <Text style={[styles.seeAll, { color: C.primary }]}>See All</Text>
             </TouchableOpacity>
@@ -278,7 +278,7 @@ export default function HomeScreen({ navigation }) {
 
       {/* ── Quick Overview ── */}
       <View style={styles.section}>
-        <Text style={[styles.sectionTitle, { color: C.text }]}>📊 Overview</Text>
+        <Text style={[styles.sectionTitle, { color: C.text }]}>Overview</Text>
         <View style={[styles.overviewCard, { backgroundColor: C.surface, borderColor: C.border }]}>
           <View style={styles.overviewRow}>
             <View style={styles.overviewItem}>
@@ -303,7 +303,7 @@ export default function HomeScreen({ navigation }) {
           activeOpacity={0.7}
           onPress={() => navigation.navigate('ManageTeam')}
         >
-          <Text style={[styles.sectionTitle, { color: C.text }]}>👥 My Team</Text>
+          <Text style={[styles.sectionTitle, { color: C.text }]}>My Team</Text>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
             <Text style={[styles.seeAll, { color: C.primary }]}>Manage</Text>
             <Ionicons name="chevron-forward" size={14} color={C.primary} />
@@ -325,38 +325,7 @@ export default function HomeScreen({ navigation }) {
         </TouchableOpacity>
       </View>
 
-      {/* ── Quick Actions ── */}
-      <View style={[styles.section, { marginBottom: 30 }]}>
-        <Text style={[styles.sectionTitle, { color: C.text }]}>⚡ Quick Actions</Text>
-        <View style={styles.actionsRow}>
-          <TouchableOpacity
-            style={[styles.actionBtn, { backgroundColor: C.primary }]}
-            activeOpacity={0.8}
-            onPress={() => navigation.navigate('EventsTab', { screen: 'AddEvent', initial: false })}
-          >
-            <Ionicons name="add-circle" size={22} color="#fff" />
-            <Text style={styles.actionText}>New Event</Text>
-          </TouchableOpacity>
 
-          <TouchableOpacity
-            style={[styles.actionBtn, { backgroundColor: C.accent }]}
-            activeOpacity={0.8}
-            onPress={() => navigation.navigate('EventsTab', { screen: 'AddTravel', initial: false })}
-          >
-            <Ionicons name="airplane" size={22} color="#fff" />
-            <Text style={styles.actionText}>New Travel</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={[styles.actionBtn, { backgroundColor: C.info }]}
-            activeOpacity={0.8}
-            onPress={() => navigation.navigate('CalendarTab')}
-          >
-            <Ionicons name="calendar" size={22} color="#fff" />
-            <Text style={styles.actionText}>Calendar</Text>
-          </TouchableOpacity>
-        </View>
-      </View>
     </ScrollView>
   );
 }

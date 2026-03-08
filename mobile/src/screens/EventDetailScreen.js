@@ -555,19 +555,20 @@ export default function EventDetailScreen({ route, navigation }) {
                       </Text>
                       <Text style={{ fontSize: 12, color: C.textSecondary, marginTop: 1 }}>{role.label}</Text>
                     </View>
-                    <View style={{ alignItems: 'flex-end', marginRight: 6 }}>
-                      <Text style={{ fontSize: 13, fontWeight: '600', color: C.text }}>
-                        ₹{Number(member.amount || 0).toLocaleString('en-IN')}
-                      </Text>
+                    <View style={{ alignItems: 'flex-end', marginRight: 8 }}>
+                      {(member.amount || 0) > 0 && (
+                        <Text style={{ fontSize: 13, fontWeight: '600', color: C.text }}>
+                          ₹{Number(member.amount).toLocaleString('en-IN')}
+                        </Text>
+                      )}
                       {balance > 0 && (
                         <Text style={{ fontSize: 11, color: C.warning }}>
                           Due: ₹{balance.toLocaleString('en-IN')}
                         </Text>
                       )}
                     </View>
-                    <View style={[styles.statusPill, { backgroundColor: pay.bg, paddingHorizontal: 7, paddingVertical: 3 }]}>
-                      <Ionicons name={pay.icon} size={12} color={pay.color} />
-                      <Text style={{ fontSize: 10, fontWeight: '600', color: pay.color, marginLeft: 3 }}>{pay.label}</Text>
+                    <View style={[styles.statusPill, { backgroundColor: pay.bg, paddingHorizontal: 8, paddingVertical: 3 }]}>
+                      <Text style={{ fontSize: 10, fontWeight: '700', color: pay.color }}>{pay.label}</Text>
                     </View>
                     <TouchableOpacity
                       onPress={() => navigation.navigate('EditTeam', { teamMemberId: member.id })}

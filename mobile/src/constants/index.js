@@ -221,7 +221,7 @@ export const BOOKING_STATUSES = [
 export const TEAM_ROLES = [
   { key: 'makeup_artist',   label: 'Makeup Artist',   icon: 'brush',        color: '#D81B60' },
   { key: 'hairstylist',     label: 'Hairstylist',     icon: 'cut',          color: '#8E24AA' },
-  { key: 'saree_drapist',   label: 'Saree Drapist',   icon: 'shirt',        color: '#D4883E' },
+  { key: 'saree_drapist',   label: 'Saree Drapist',   icon: 'ribbon',       color: '#D4883E' },
   { key: 'assistant',       label: 'Assistant',        icon: 'people',       color: '#1565C0' },
   { key: 'driver',          label: 'Driver',           icon: 'car',          color: '#2D8B5F' },
   { key: 'photographer',    label: 'Photographer',     icon: 'camera',       color: '#00796B' },

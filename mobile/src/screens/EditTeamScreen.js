@@ -10,23 +10,12 @@ import {
   KeyboardAvoidingView,
   Platform,
   ActivityIndicator,
+  Modal,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { getTeamMemberById, updateTeamMember } from '../api/team';
-import { COLORS, TEAM_ROLES } from '../constants';
+import { COLORS, TEAM_ROLES, TEAM_ROLE_MAP } from '../constants';
 import { useTheme } from '../context/SettingsContext';
-
-const SectionHeader = ({ icon, color, title }) => {
-  const C = useTheme();
-  return (
-    <View style={styles.sectionHeader}>
-      <View style={[styles.sectionIcon, { backgroundColor: color }]}>
-        <Ionicons name={icon} size={16} color="#FFF" />
-      </View>
-      <Text style={[styles.sectionTitle, { color: C.text }]}>{title}</Text>
-    </View>
-  );
-};
 
 export default function EditTeamScreen({ navigation, route }) {
   const C = useTheme();
@@ -40,6 +29,7 @@ export default function EditTeamScreen({ navigation, route }) {
   const [notes, setNotes] = useState('');
   const [eventLabel, setEventLabel] = useState('');
   const [saving, setSaving] = useState(false);
+  const [rolePickerVisible, setRolePickerVisible] = useState(false);
 
   useEffect(() => {
     (async () => {
@@ -63,10 +53,22 @@ export default function EditTeamScreen({ navigation, route }) {
     })();
   }, [teamMemberId]);
 
-  const handleSave = async () => {
-    if (!memberName.trim()) return Alert.alert('Required', 'Please enter the member name.');
-    if (!amount || parseFloat(amount) <= 0) return Alert.alert('Required', 'Please enter the amount to pay.');
+  const parsedAmount = parseFloat(amount) || 0;
+  const parsedPaid = parseFloat(amountPaid) || 0;
+  const balance = Math.max(0, parsedAmount - parsedPaid);
+  const isSettled = parsedAmount > 0 && parsedPaid >= parsedAmount;
 
+  const handleSettle = () => {
+    if (parsedAmount > 0) {
+      setAmountPaid(amount);
+    }
+  };
+
+  const handleUnsettle = () => {
+    setAmountPaid('0');
+  };
+
+  const handleSave = async () => {
     setSaving(true);
     try {
       const res = await updateTeamMember(teamMemberId, {
@@ -96,9 +98,7 @@ export default function EditTeamScreen({ navigation, route }) {
     );
   }
 
-  const parsedAmount = parseFloat(amount) || 0;
-  const parsedPaid = parseFloat(amountPaid) || 0;
-  const balance = Math.max(0, parsedAmount - parsedPaid);
+  const roleInfo = TEAM_ROLE_MAP[teamRole];
 
   return (
     <KeyboardAvoidingView
@@ -110,71 +110,80 @@ export default function EditTeamScreen({ navigation, route }) {
         {/* Event label (read-only) */}
         {eventLabel ? (
           <View style={[styles.card, { backgroundColor: C.surface, borderColor: C.borderLight }]}>
-            <SectionHeader icon="calendar" color={C.primary} title="Event" />
+            <Text style={[styles.cardTitle, { color: C.textSecondary }]}>Event</Text>
             <Text style={[styles.eventLabel, { color: C.text }]}>{eventLabel}</Text>
           </View>
         ) : null}
 
-        {/* Role Selector */}
+        {/* Name (read-only) */}
         <View style={[styles.card, { backgroundColor: C.surface, borderColor: C.borderLight }]}>
-          <SectionHeader icon="people" color="#8E24AA" title="Team Role" />
-          <View style={styles.roleGrid}>
-            {TEAM_ROLES.map((r) => {
-              const active = teamRole === r.key;
-              return (
-                <TouchableOpacity
-                  key={r.key}
-                  style={[
-                    styles.roleChip,
-                    { borderColor: active ? r.color : C.borderLight, backgroundColor: active ? r.color + '15' : C.inputBg },
-                  ]}
-                  onPress={() => setTeamRole(r.key)}
-                >
-                  <Ionicons name={r.icon} size={18} color={active ? r.color : C.textMuted} />
-                  <Text style={[styles.roleLabel, { color: active ? r.color : C.textSecondary }]}>{r.label}</Text>
-                </TouchableOpacity>
-              );
-            })}
-          </View>
+          <Text style={[styles.cardTitle, { color: C.textSecondary }]}>Name</Text>
+          <Text style={[styles.nameText, { color: C.text }]}>{memberName}</Text>
         </View>
 
-        {/* Member Details */}
+        {/* Role Dropdown */}
         <View style={[styles.card, { backgroundColor: C.surface, borderColor: C.borderLight }]}>
-          <SectionHeader icon="person" color="#1565C0" title="Member Details" />
-          <Text style={[styles.label, { color: C.textSecondary }]}>Name</Text>
-          <TextInput
-            style={[styles.input, { borderColor: C.border, backgroundColor: C.inputBg, color: C.text }]}
-            value={memberName}
-            onChangeText={setMemberName}
-          />
-          <Text style={[styles.label, { color: C.textSecondary }]}>Notes (optional)</Text>
-          <TextInput
-            style={[styles.input, styles.textArea, { borderColor: C.border, backgroundColor: C.inputBg, color: C.text }]}
-            value={notes}
-            onChangeText={setNotes}
-            multiline
-            numberOfLines={3}
-          />
+          <Text style={[styles.cardTitle, { color: C.textSecondary }]}>Team Role</Text>
+          <TouchableOpacity
+            style={[styles.dropdown, { borderColor: C.border, backgroundColor: C.inputBg }]}
+            onPress={() => setRolePickerVisible(true)}
+          >
+            {roleInfo ? (
+              <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1, gap: 8 }}>
+                <Ionicons name={roleInfo.icon} size={16} color={roleInfo.color} />
+                <Text style={[styles.dropdownText, { color: C.text }]}>{roleInfo.label}</Text>
+              </View>
+            ) : (
+              <Text style={[styles.dropdownText, { color: C.textMuted }]}>Select role…</Text>
+            )}
+            <Ionicons name="chevron-down" size={18} color={C.textMuted} />
+          </TouchableOpacity>
         </View>
 
         {/* Payment */}
         <View style={[styles.card, { backgroundColor: C.surface, borderColor: C.borderLight }]}>
-          <SectionHeader icon="wallet" color="#D4883E" title="Payment" />
+          <Text style={[styles.cardTitle, { color: C.textSecondary }]}>Payment</Text>
+
           <Text style={[styles.label, { color: C.textSecondary }]}>Amount to Pay (₹)</Text>
           <TextInput
             style={[styles.input, { borderColor: C.border, backgroundColor: C.inputBg, color: C.text }]}
             value={amount}
-            onChangeText={setAmount}
+            onChangeText={(v) => { setAmount(v); }}
             keyboardType="numeric"
-          />
-          <Text style={[styles.label, { color: C.textSecondary }]}>Amount Paid (₹)</Text>
-          <TextInput
-            style={[styles.input, { borderColor: C.border, backgroundColor: C.inputBg, color: C.text }]}
-            value={amountPaid}
-            onChangeText={setAmountPaid}
-            keyboardType="numeric"
+            placeholder="0"
+            placeholderTextColor={C.textMuted}
           />
 
+          {/* Settled toggle */}
+          <TouchableOpacity
+            style={[styles.settledRow, { backgroundColor: isSettled ? '#E8F5EE' : C.inputBg, borderColor: isSettled ? '#2D8B5F' : C.border }]}
+            onPress={isSettled ? handleUnsettle : handleSettle}
+            activeOpacity={0.7}
+          >
+            <Ionicons
+              name={isSettled ? 'checkmark-circle' : 'ellipse-outline'}
+              size={22}
+              color={isSettled ? '#2D8B5F' : C.textMuted}
+            />
+            <Text style={[styles.settledText, { color: isSettled ? '#2D8B5F' : C.text }]}>Settled</Text>
+          </TouchableOpacity>
+
+          {/* Show amounts when not fully settled */}
+          {!isSettled && parsedAmount > 0 && (
+            <>
+              <Text style={[styles.label, { color: C.textSecondary }]}>Amount Paid (₹)</Text>
+              <TextInput
+                style={[styles.input, { borderColor: C.border, backgroundColor: C.inputBg, color: C.text }]}
+                value={amountPaid}
+                onChangeText={setAmountPaid}
+                keyboardType="numeric"
+                placeholder="0"
+                placeholderTextColor={C.textMuted}
+              />
+            </>
+          )}
+
+          {/* Payment summary */}
           {parsedAmount > 0 && (
             <View style={[styles.paymentSummary, { borderTopColor: C.borderLight }]}>
               <View style={styles.payRow}>
@@ -191,20 +200,22 @@ export default function EditTeamScreen({ navigation, route }) {
                   <Text style={[styles.payValue, { color: C.warning, fontWeight: '700' }]}>₹{balance.toLocaleString('en-IN')}</Text>
                 </View>
               )}
-              <View style={[styles.statusRow, { backgroundColor: parsedPaid >= parsedAmount ? '#E8F5EE' : parsedPaid > 0 ? '#FFF3E0' : '#FFEBEE' }]}>
-                <Ionicons
-                  name={parsedPaid >= parsedAmount ? 'checkmark-circle' : parsedPaid > 0 ? 'remove-circle' : 'time'}
-                  size={16}
-                  color={parsedPaid >= parsedAmount ? '#2D8B5F' : parsedPaid > 0 ? '#D4883E' : '#C62828'}
-                />
-                <Text style={[styles.statusText, {
-                  color: parsedPaid >= parsedAmount ? '#2D8B5F' : parsedPaid > 0 ? '#D4883E' : '#C62828',
-                }]}>
-                  {parsedPaid >= parsedAmount ? 'Fully Paid' : parsedPaid > 0 ? 'Partially Paid' : 'Pending'}
-                </Text>
-              </View>
             </View>
           )}
+        </View>
+
+        {/* Notes */}
+        <View style={[styles.card, { backgroundColor: C.surface, borderColor: C.borderLight }]}>
+          <Text style={[styles.cardTitle, { color: C.textSecondary }]}>Notes (optional)</Text>
+          <TextInput
+            style={[styles.input, styles.textArea, { borderColor: C.border, backgroundColor: C.inputBg, color: C.text }]}
+            value={notes}
+            onChangeText={setNotes}
+            multiline
+            numberOfLines={3}
+            placeholder="Any notes..."
+            placeholderTextColor={C.textMuted}
+          />
         </View>
 
         <TouchableOpacity
@@ -215,15 +226,45 @@ export default function EditTeamScreen({ navigation, route }) {
           {saving ? (
             <ActivityIndicator color="#FFF" />
           ) : (
-            <>
-              <Ionicons name="checkmark-circle" size={20} color="#FFF" />
-              <Text style={styles.saveBtnText}>Save Changes</Text>
-            </>
+            <Text style={styles.saveBtnText}>Save Changes</Text>
           )}
         </TouchableOpacity>
 
         <View style={{ height: 40 }} />
       </ScrollView>
+
+      {/* Role Picker Modal */}
+      <Modal visible={rolePickerVisible} animationType="slide" transparent>
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalContent, { backgroundColor: C.surface }]}>
+            <View style={styles.modalHeader}>
+              <Text style={[styles.modalTitle, { color: C.text }]}>Select Role</Text>
+              <TouchableOpacity onPress={() => setRolePickerVisible(false)}>
+                <Ionicons name="close" size={24} color={C.textMuted} />
+              </TouchableOpacity>
+            </View>
+            {TEAM_ROLES.map((r) => {
+              const active = teamRole === r.key;
+              return (
+                <TouchableOpacity
+                  key={r.key}
+                  style={[styles.roleItem, {
+                    borderBottomColor: C.borderLight,
+                    backgroundColor: active ? r.color + '12' : 'transparent',
+                  }]}
+                  onPress={() => { setTeamRole(r.key); setRolePickerVisible(false); }}
+                >
+                  <View style={[styles.roleItemIcon, { backgroundColor: r.color + '18' }]}>
+                    <Ionicons name={r.icon} size={20} color={r.color} />
+                  </View>
+                  <Text style={[styles.roleItemLabel, { color: active ? r.color : C.text }]}>{r.label}</Text>
+                  {active && <Ionicons name="checkmark" size={20} color={r.color} />}
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+        </View>
+      </Modal>
     </KeyboardAvoidingView>
   );
 }
@@ -232,32 +273,39 @@ const styles = StyleSheet.create({
   centered: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   scroll: { padding: 16, paddingBottom: 40 },
   card: { borderRadius: 14, borderWidth: 1, padding: 16, marginBottom: 14 },
-  sectionHeader: { flexDirection: 'row', alignItems: 'center', marginBottom: 14 },
-  sectionIcon: { width: 30, height: 30, borderRadius: 15, justifyContent: 'center', alignItems: 'center', marginRight: 10 },
-  sectionTitle: { fontSize: 16, fontWeight: '700' },
-  eventLabel: { fontSize: 15, fontWeight: '500' },
-  roleGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
-  roleChip: {
-    flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
-    borderWidth: 1.5, borderRadius: 12, paddingVertical: 14, paddingHorizontal: 12,
-    width: '47%',
-  },
-  roleLabel: { fontSize: 13, fontWeight: '600', marginTop: 6 },
-  label: { fontSize: 13, fontWeight: '600', marginBottom: 6, marginTop: 10 },
+  cardTitle: { fontSize: 13, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.3, marginBottom: 8 },
+  eventLabel: { fontSize: 15, fontWeight: '600' },
+  nameText: { fontSize: 17, fontWeight: '700' },
+  label: { fontSize: 13, fontWeight: '600', marginBottom: 6, marginTop: 12 },
   input: { borderWidth: 1, borderRadius: 10, paddingHorizontal: 14, paddingVertical: 12, fontSize: 15 },
   textArea: { minHeight: 70, textAlignVertical: 'top' },
+  dropdown: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    borderWidth: 1, borderRadius: 10, paddingHorizontal: 14, paddingVertical: 13,
+  },
+  dropdownText: { fontSize: 15, flex: 1 },
+  settledRow: {
+    flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 14,
+    paddingVertical: 14, paddingHorizontal: 14, borderRadius: 10, borderWidth: 1,
+  },
+  settledText: { fontSize: 15, fontWeight: '700' },
   paymentSummary: { borderTopWidth: 1, marginTop: 14, paddingTop: 12 },
   payRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 6 },
   payLabel: { fontSize: 13 },
   payValue: { fontSize: 14, fontWeight: '600' },
-  statusRow: {
-    flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 8,
-    paddingVertical: 8, paddingHorizontal: 12, borderRadius: 8,
-  },
-  statusText: { fontSize: 13, fontWeight: '600' },
   saveBtn: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
+    alignItems: 'center', justifyContent: 'center',
     borderRadius: 12, paddingVertical: 16, marginTop: 8,
   },
   saveBtnText: { fontSize: 16, fontWeight: '700', color: '#FFF' },
+  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
+  modalContent: { borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 20 },
+  modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 },
+  modalTitle: { fontSize: 18, fontWeight: '700' },
+  roleItem: {
+    flexDirection: 'row', alignItems: 'center', paddingVertical: 14, paddingHorizontal: 4,
+    borderBottomWidth: 1, gap: 12,
+  },
+  roleItemIcon: { width: 38, height: 38, borderRadius: 12, justifyContent: 'center', alignItems: 'center' },
+  roleItemLabel: { fontSize: 15, fontWeight: '600', flex: 1 },
 });
