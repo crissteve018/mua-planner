@@ -817,7 +817,7 @@ app.post('/api/team', async (req, res) => {
     if (!ev) return res.status(404).json({ success: false, error: 'Event not found' });
 
     // Enforce max per role
-    const maxByRole = { hairstylist: 5, makeup_artist: 5, saree_drapist: 5, assistant: 5, driver: 5 };
+    const maxByRole = { hairstylist: 5, makeup_artist: 5, saree_drapist: 5, assistant: 5, driver: 5, photographer: 5, event_planner: 5 };
     const max = maxByRole[b.teamRole] || 5;
     const existing = await all(
       'SELECT id FROM team_members WHERE eventId = ? AND teamRole = ?',
