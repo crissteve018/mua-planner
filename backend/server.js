@@ -707,7 +707,7 @@ app.get('/api/team-contacts/:id/payments', async (req, res) => {
 
     const events = await all(
       `SELECT tm.id, tm.eventId, tm.teamRole, tm.amount, tm.amountPaid, tm.paymentStatus,
-              e.clientName AS eventName, e.eventType, e.eventDate, e.eventCity
+              e.clientName AS eventName, e.eventType, e.eventDate, e.city AS eventCity
        FROM team_members tm
        LEFT JOIN events e ON tm.eventId = e.id
        WHERE tm.contactId = ?
