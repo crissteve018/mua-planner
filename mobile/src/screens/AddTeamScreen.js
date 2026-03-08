@@ -114,10 +114,8 @@ export default function AddTeamScreen({ navigation, route }) {
       e.eventType?.toLowerCase().includes(eventSearch.toLowerCase())
   );
 
-  const getFilteredContacts = (memberIndex) => {
-    const role = members[memberIndex]?.teamRole;
+  const getFilteredContacts = () => {
     let list = contacts;
-    if (role) list = contacts.filter(c => c.defaultRole === role);
     if (nameSearch) {
       list = list.filter(c => c.name.toLowerCase().includes(nameSearch.toLowerCase()));
     }
@@ -180,7 +178,6 @@ export default function AddTeamScreen({ navigation, route }) {
       const m = members[i];
       if (!m.teamRole) return Alert.alert('Required', `Please select a role for Member ${i + 1}.`);
       if (!m.memberName.trim()) return Alert.alert('Required', `Please select or enter a name for Member ${i + 1}.`);
-      if (!m.amount || parseFloat(m.amount) <= 0) return Alert.alert('Required', `Please enter the amount for Member ${i + 1}.`);
       if (m.paymentOption === 'partial') {
         const paid = parseFloat(m.amountPaid) || 0;
         const total = parseFloat(m.amount) || 0;
@@ -533,7 +530,7 @@ export default function AddTeamScreen({ navigation, route }) {
               onChangeText={setNameSearch}
             />
             <FlatList
-              data={getFilteredContacts(namePickerIndex)}
+              data={getFilteredContacts()}
               keyExtractor={(item) => item.id}
               ListHeaderComponent={
                 nameSearch.trim() ? (
@@ -576,15 +573,6 @@ export default function AddTeamScreen({ navigation, route }) {
                   </TouchableOpacity>
                 );
               }}
-              ListFooterComponent={
-                <TouchableOpacity
-                  style={[styles.addContactRow, { borderTopColor: C.borderLight }]}
-                  onPress={openAddContact}
-                >
-                  <Ionicons name="add-circle" size={20} color={C.primary} />
-                  <Text style={[styles.addContactText, { color: C.primary }]}>Add New Contact</Text>
-                </TouchableOpacity>
-              }
               ListEmptyComponent={
                 !nameSearch.trim() ? (
                   <View style={{ padding: 24, alignItems: 'center' }}>

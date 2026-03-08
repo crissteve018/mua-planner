@@ -177,94 +177,94 @@ export default function ManageTeamScreen() {
         >
           <View style={[styles.modalContent, { backgroundColor: C.surface }]}>
             <View style={styles.modalHeader}>
-              <Text style={[styles.modalTitle, { color: C.text }]}>{editing ? 'Edit Contact' : 'Add Contact'}</Text>
-              <TouchableOpacity onPress={() => setModalVisible(false)}>
-                <Ionicons name="close" size={24} color={C.textMuted} />
+              <Text style={[styles.modalTitle, { color: C.text }]}>
+                {rolePickerVisible ? 'Select Role' : editing ? 'Edit Contact' : 'Add Contact'}
+              </Text>
+              <TouchableOpacity onPress={() => {
+                if (rolePickerVisible) { setRolePickerVisible(false); }
+                else { setModalVisible(false); }
+              }}>
+                <Ionicons name={rolePickerVisible ? 'arrow-back' : 'close'} size={24} color={C.textMuted} />
               </TouchableOpacity>
             </View>
 
-            <Text style={[styles.label, { color: C.textSecondary }]}>Name</Text>
-            <TextInput
-              style={[styles.input, { borderColor: C.border, backgroundColor: C.inputBg, color: C.text }]}
-              placeholder="Enter name"
-              placeholderTextColor={C.textMuted}
-              value={name}
-              onChangeText={setName}
-              autoFocus
-            />
+            {rolePickerVisible ? (
+              /* ── Inline Role List ── */
+              <>
+                {TEAM_ROLES.map((r) => {
+                  const active = role === r.key;
+                  return (
+                    <TouchableOpacity
+                      key={r.key}
+                      style={[styles.roleItem, {
+                        borderBottomColor: C.borderLight,
+                        backgroundColor: active ? r.color + '12' : 'transparent',
+                      }]}
+                      onPress={() => { setRole(r.key); setRolePickerVisible(false); }}
+                    >
+                      <View style={[styles.roleItemIcon, { backgroundColor: r.color + '18' }]}>
+                        <Ionicons name={r.icon} size={20} color={r.color} />
+                      </View>
+                      <Text style={[styles.roleItemLabel, { color: active ? r.color : C.text }]}>{r.label}</Text>
+                      {active && <Ionicons name="checkmark" size={20} color={r.color} />}
+                    </TouchableOpacity>
+                  );
+                })}
+              </>
+            ) : (
+              /* ── Contact Form ── */
+              <>
+                <Text style={[styles.label, { color: C.textSecondary }]}>Name</Text>
+                <TextInput
+                  style={[styles.input, { borderColor: C.border, backgroundColor: C.inputBg, color: C.text }]}
+                  placeholder="Enter name"
+                  placeholderTextColor={C.textMuted}
+                  value={name}
+                  onChangeText={setName}
+                  autoFocus
+                />
 
-            <Text style={[styles.label, { color: C.textSecondary }]}>Role</Text>
-            <TouchableOpacity
-              style={[styles.picker, { borderColor: C.border, backgroundColor: C.inputBg }]}
-              onPress={() => setRolePickerVisible(true)}
-            >
-              {roleInfo ? (
-                <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1, gap: 8 }}>
-                  <Ionicons name={roleInfo.icon} size={16} color={roleInfo.color} />
-                  <Text style={[styles.pickerText, { color: C.text }]}>{roleInfo.label}</Text>
-                </View>
-              ) : (
-                <Text style={[styles.pickerText, { color: C.textMuted }]}>Select role…</Text>
-              )}
-              <Ionicons name="chevron-down" size={18} color={C.textMuted} />
-            </TouchableOpacity>
+                <Text style={[styles.label, { color: C.textSecondary }]}>Role</Text>
+                <TouchableOpacity
+                  style={[styles.picker, { borderColor: C.border, backgroundColor: C.inputBg }]}
+                  onPress={() => setRolePickerVisible(true)}
+                >
+                  {roleInfo ? (
+                    <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1, gap: 8 }}>
+                      <Ionicons name={roleInfo.icon} size={16} color={roleInfo.color} />
+                      <Text style={[styles.pickerText, { color: C.text }]}>{roleInfo.label}</Text>
+                    </View>
+                  ) : (
+                    <Text style={[styles.pickerText, { color: C.textMuted }]}>Select role…</Text>
+                  )}
+                  <Ionicons name="chevron-down" size={18} color={C.textMuted} />
+                </TouchableOpacity>
 
-            <Text style={[styles.label, { color: C.textSecondary }]}>Phone (optional)</Text>
-            <TextInput
-              style={[styles.input, { borderColor: C.border, backgroundColor: C.inputBg, color: C.text }]}
-              placeholder="Phone number"
-              placeholderTextColor={C.textMuted}
-              value={phone}
-              onChangeText={setPhone}
-              keyboardType="phone-pad"
-            />
+                <Text style={[styles.label, { color: C.textSecondary }]}>Phone (optional)</Text>
+                <TextInput
+                  style={[styles.input, { borderColor: C.border, backgroundColor: C.inputBg, color: C.text }]}
+                  placeholder="Phone number"
+                  placeholderTextColor={C.textMuted}
+                  value={phone}
+                  onChangeText={setPhone}
+                  keyboardType="phone-pad"
+                />
 
-            <TouchableOpacity
-              style={[styles.saveBtn, { backgroundColor: C.primary, opacity: saving ? 0.6 : 1 }]}
-              onPress={handleSave}
-              disabled={saving}
-            >
-              {saving ? (
-                <ActivityIndicator color="#FFF" />
-              ) : (
-                <Text style={styles.saveBtnText}>{editing ? 'Update' : 'Add Contact'}</Text>
-              )}
-            </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.saveBtn, { backgroundColor: C.primary, opacity: saving ? 0.6 : 1 }]}
+                  onPress={handleSave}
+                  disabled={saving}
+                >
+                  {saving ? (
+                    <ActivityIndicator color="#FFF" />
+                  ) : (
+                    <Text style={styles.saveBtnText}>{editing ? 'Update' : 'Add Contact'}</Text>
+                  )}
+                </TouchableOpacity>
+              </>
+            )}
           </View>
         </KeyboardAvoidingView>
-      </Modal>
-
-      {/* ── Role Picker Modal ── */}
-      <Modal visible={rolePickerVisible} animationType="slide" transparent>
-        <View style={styles.modalOverlay}>
-          <View style={[styles.modalContent, { backgroundColor: C.surface }]}>
-            <View style={styles.modalHeader}>
-              <Text style={[styles.modalTitle, { color: C.text }]}>Select Role</Text>
-              <TouchableOpacity onPress={() => setRolePickerVisible(false)}>
-                <Ionicons name="close" size={24} color={C.textMuted} />
-              </TouchableOpacity>
-            </View>
-            {TEAM_ROLES.map((r) => {
-              const active = role === r.key;
-              return (
-                <TouchableOpacity
-                  key={r.key}
-                  style={[styles.roleItem, {
-                    borderBottomColor: C.borderLight,
-                    backgroundColor: active ? r.color + '12' : 'transparent',
-                  }]}
-                  onPress={() => { setRole(r.key); setRolePickerVisible(false); }}
-                >
-                  <View style={[styles.roleItemIcon, { backgroundColor: r.color + '18' }]}>
-                    <Ionicons name={r.icon} size={20} color={r.color} />
-                  </View>
-                  <Text style={[styles.roleItemLabel, { color: active ? r.color : C.text }]}>{r.label}</Text>
-                  {active && <Ionicons name="checkmark" size={20} color={r.color} />}
-                </TouchableOpacity>
-              );
-            })}
-          </View>
-        </View>
       </Modal>
     </View>
   );

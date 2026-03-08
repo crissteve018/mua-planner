@@ -193,6 +193,11 @@ async function initializeDatabase() {
     )
   `);
 
+  // Migration: add contactId column if missing (table created before column was added)
+  await pool.query(`
+    ALTER TABLE team_members ADD COLUMN IF NOT EXISTS contactId TEXT DEFAULT ''
+  `).catch(() => {});
+
   await pool.query(`
     CREATE TABLE IF NOT EXISTS team_contacts (
       id TEXT PRIMARY KEY,
