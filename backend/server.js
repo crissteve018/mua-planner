@@ -679,13 +679,58 @@ app.delete('/api/travel/:id', async (req, res) => {
 // TEAM CONTACTS API (frequent team members)
 // ─────────────────────────────────────────────
 
-// GET /api/team-contacts — list all contacts
+// GET /api/team-contacts — list all contacts with pending balance
 app.get('/api/team-contacts', async (req, res) => {
   try {
-    const rows = await all('SELECT * FROM team_contacts ORDER BY name ASC');
+    const rows = await all(
+      `SELECT tc.*,
+              COALESCE(SUM(tm.amount), 0) AS totalAmount,
+              COALESCE(SUM(tm.amountPaid), 0) AS totalPaid,
+              COALESCE(SUM(tm.amount - tm.amountPaid), 0) AS pendingBalance
+       FROM team_contacts tc
+       LEFT JOIN team_members tm ON tc.id = tm.contactId
+       GROUP BY tc.id
+       ORDER BY tc.name ASC`
+    );
     res.json({ success: true, data: rows });
   } catch (err) {
     console.error('Error fetching team contacts:', err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// GET /api/team-contacts/:id/payments — payment detail per contact
+app.get('/api/team-contacts/:id/payments', async (req, res) => {
+  try {
+    const contact = await get('SELECT * FROM team_contacts WHERE id = ?', req.params.id);
+    if (!contact) return res.status(404).json({ success: false, error: 'Contact not found' });
+
+    const events = await all(
+      `SELECT tm.id, tm.eventId, tm.teamRole, tm.amount, tm.amountPaid, tm.paymentStatus,
+              e.clientName AS eventName, e.eventType, e.eventDate, e.eventCity
+       FROM team_members tm
+       LEFT JOIN events e ON tm.eventId = e.id
+       WHERE tm.contactId = ?
+       ORDER BY e.eventDate DESC`,
+      req.params.id
+    );
+
+    const totalAmount = events.reduce((s, r) => s + (r.amount || 0), 0);
+    const totalPaid = events.reduce((s, r) => s + (r.amountPaid || 0), 0);
+
+    res.json({
+      success: true,
+      data: {
+        contact,
+        events,
+        totalAmount,
+        totalPaid,
+        pendingBalance: totalAmount - totalPaid,
+        eventCount: events.length,
+      },
+    });
+  } catch (err) {
+    console.error('Error fetching contact payments:', err);
     res.status(500).json({ success: false, error: err.message });
   }
 });

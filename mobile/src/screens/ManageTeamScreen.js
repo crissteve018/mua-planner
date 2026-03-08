@@ -23,7 +23,7 @@ import {
 import { TEAM_ROLES, TEAM_ROLE_MAP } from '../constants';
 import { useTheme } from '../context/SettingsContext';
 
-export default function ManageTeamScreen() {
+export default function ManageTeamScreen({ navigation }) {
   const C = useTheme();
   const [contacts, setContacts] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -113,8 +113,13 @@ export default function ManageTeamScreen() {
 
   const renderContact = ({ item }) => {
     const ri = TEAM_ROLE_MAP[item.defaultRole];
+    const pending = item.pendingBalance || 0;
     return (
-      <View style={[styles.contactCard, { backgroundColor: C.surface, borderColor: C.borderLight }]}>
+      <TouchableOpacity
+        style={[styles.contactCard, { backgroundColor: C.surface, borderColor: C.borderLight }]}
+        activeOpacity={0.7}
+        onPress={() => navigation.navigate('TeamContactDetail', { contactId: item.id, contactName: item.name })}
+      >
         <View style={[styles.contactIcon, { backgroundColor: (ri?.color || '#999') + '18' }]}>
           <Ionicons name={ri?.icon || 'person'} size={20} color={ri?.color || '#999'} />
         </View>
@@ -125,13 +130,19 @@ export default function ManageTeamScreen() {
             {item.phone ? <Text style={[styles.contactPhone, { color: C.textMuted }]}> · {item.phone}</Text> : null}
           </View>
         </View>
+        {pending > 0 && (
+          <View style={[styles.pendingBadge, { backgroundColor: '#FF6B6B18' }]}>
+            <Text style={styles.pendingText}>₹{pending.toLocaleString('en-IN')}</Text>
+            <Text style={styles.pendingLabel}>pending</Text>
+          </View>
+        )}
         <TouchableOpacity style={styles.iconBtn} onPress={() => openEdit(item)}>
           <Ionicons name="create-outline" size={18} color={C.primary} />
         </TouchableOpacity>
         <TouchableOpacity style={styles.iconBtn} onPress={() => handleDelete(item)}>
           <Ionicons name="trash-outline" size={18} color={C.danger} />
         </TouchableOpacity>
-      </View>
+      </TouchableOpacity>
     );
   };
 
@@ -283,6 +294,9 @@ const styles = StyleSheet.create({
   contactRole: { fontSize: 12, fontWeight: '600' },
   contactPhone: { fontSize: 12 },
   iconBtn: { padding: 6 },
+  pendingBadge: { alignItems: 'center', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8 },
+  pendingText: { fontSize: 14, fontWeight: '800', color: '#FF6B6B' },
+  pendingLabel: { fontSize: 9, fontWeight: '600', color: '#FF6B6B', textTransform: 'uppercase', marginTop: 1 },
   emptyContainer: { alignItems: 'center', paddingTop: 80, paddingHorizontal: 40 },
   emptyTitle: { fontSize: 17, fontWeight: '700', marginTop: 16 },
   emptyHint: { fontSize: 13, textAlign: 'center', marginTop: 8, lineHeight: 18 },

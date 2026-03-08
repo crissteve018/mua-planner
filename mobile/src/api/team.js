@@ -39,3 +39,7 @@ export const deleteTeamContact = async (id) => {
   const response = await api.delete(`/api/team-contacts/${id}`);
   return response.data;
 };
+export const getContactPayments = async (id) => {
+  const response = await api.get(`/api/team-contacts/${id}/payments`);
+  return response.data;
+};

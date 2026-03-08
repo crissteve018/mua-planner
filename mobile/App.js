@@ -23,6 +23,7 @@ import EditTravelScreen from './src/screens/EditTravelScreen';
 import AddTeamScreen from './src/screens/AddTeamScreen';
 import EditTeamScreen from './src/screens/EditTeamScreen';
 import ManageTeamScreen from './src/screens/ManageTeamScreen';
+import TeamContactDetailScreen from './src/screens/TeamContactDetailScreen';
 
 import HomeScreen from './src/screens/HomeScreen';
 import CalendarScreen from './src/screens/CalendarScreen';
@@ -68,6 +69,11 @@ function HomeStack() {
         name="ManageTeam"
         component={ManageTeamScreen}
         options={{ title: 'My Team' }}
+      />
+      <Stack.Screen
+        name="TeamContactDetail"
+        component={TeamContactDetailScreen}
+        options={({ route }) => ({ title: route.params?.contactName || 'Contact Details' })}
       />
     </Stack.Navigator>
   );
