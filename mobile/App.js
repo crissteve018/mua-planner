@@ -22,6 +22,7 @@ import EditTravelScreen from './src/screens/EditTravelScreen';
 
 import AddTeamScreen from './src/screens/AddTeamScreen';
 import EditTeamScreen from './src/screens/EditTeamScreen';
+import ManageTeamScreen from './src/screens/ManageTeamScreen';
 
 import HomeScreen from './src/screens/HomeScreen';
 import CalendarScreen from './src/screens/CalendarScreen';
@@ -62,6 +63,11 @@ function HomeStack() {
         name="Home"
         component={HomeScreen}
         options={{ title: 'Home' }}
+      />
+      <Stack.Screen
+        name="ManageTeam"
+        component={ManageTeamScreen}
+        options={{ title: 'My Team' }}
       />
     </Stack.Navigator>
   );
@@ -119,7 +125,7 @@ function EventsStack() {
       <Stack.Screen
         name="AddTeam"
         component={AddTeamScreen}
-        options={{ title: 'Add Team Member', presentation: 'modal' }}
+        options={{ title: 'Add Team', presentation: 'modal' }}
       />
       <Stack.Screen
         name="EditTeam"

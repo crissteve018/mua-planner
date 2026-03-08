@@ -219,10 +219,11 @@ export const BOOKING_STATUSES = [
 // ─── Team Constants ──────────────────────────
 
 export const TEAM_ROLES = [
-  { key: 'hairstylist',   label: 'Hairstylist',    icon: 'cut',          color: '#8E24AA', max: 5 },
-  { key: 'saree_drapist', label: 'Saree Drapist',  icon: 'shirt',        color: '#D4883E', max: 5 },
-  { key: 'assistant',     label: 'Assistant',       icon: 'people',       color: '#1565C0', max: 1 },
-  { key: 'driver',        label: 'Driver',          icon: 'car',          color: '#2D8B5F', max: 1 },
+  { key: 'hairstylist',    label: 'Hairstylist',    icon: 'cut',          color: '#8E24AA' },
+  { key: 'makeup_artist',  label: 'Makeup Artist',  icon: 'brush',        color: '#D81B60' },
+  { key: 'saree_drapist',  label: 'Saree Drapist',  icon: 'shirt',        color: '#D4883E' },
+  { key: 'assistant',      label: 'Assistant',       icon: 'people',       color: '#1565C0' },
+  { key: 'driver',         label: 'Driver',          icon: 'car',          color: '#2D8B5F' },
 ];
 
 export const TEAM_ROLE_MAP = Object.fromEntries(

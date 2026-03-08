@@ -676,6 +676,76 @@ app.delete('/api/travel/:id', async (req, res) => {
 });
 
 // ─────────────────────────────────────────────
+// TEAM CONTACTS API (frequent team members)
+// ─────────────────────────────────────────────
+
+// GET /api/team-contacts — list all contacts
+app.get('/api/team-contacts', async (req, res) => {
+  try {
+    const rows = await all('SELECT * FROM team_contacts ORDER BY name ASC');
+    res.json({ success: true, data: rows });
+  } catch (err) {
+    console.error('Error fetching team contacts:', err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// POST /api/team-contacts — create contact
+app.post('/api/team-contacts', async (req, res) => {
+  try {
+    const { name, defaultRole, phone, notes } = req.body;
+    if (!name || !name.trim()) {
+      return res.status(400).json({ success: false, error: 'Name is required' });
+    }
+    const id = require('crypto').randomUUID();
+    const now = new Date().toISOString();
+    await run(
+      `INSERT INTO team_contacts (id, name, defaultRole, phone, notes, createdAt, updatedAt)
+       VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      id, name.trim(), defaultRole || 'assistant', phone || '', notes || '', now, now
+    );
+    const created = await get('SELECT * FROM team_contacts WHERE id = ?', id);
+    res.status(201).json({ success: true, data: created });
+  } catch (err) {
+    console.error('Error creating team contact:', err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// PUT /api/team-contacts/:id — update contact
+app.put('/api/team-contacts/:id', async (req, res) => {
+  try {
+    const existing = await get('SELECT * FROM team_contacts WHERE id = ?', req.params.id);
+    if (!existing) return res.status(404).json({ success: false, error: 'Contact not found' });
+    const { name, defaultRole, phone, notes } = req.body;
+    const now = new Date().toISOString();
+    await run(
+      `UPDATE team_contacts SET name = ?, defaultRole = ?, phone = ?, notes = ?, updatedAt = ? WHERE id = ?`,
+      name?.trim() ?? existing.name, defaultRole ?? existing.defaultRole,
+      phone ?? existing.phone, notes ?? existing.notes, now, req.params.id
+    );
+    const updated = await get('SELECT * FROM team_contacts WHERE id = ?', req.params.id);
+    res.json({ success: true, data: updated });
+  } catch (err) {
+    console.error('Error updating team contact:', err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// DELETE /api/team-contacts/:id — delete contact
+app.delete('/api/team-contacts/:id', async (req, res) => {
+  try {
+    const existing = await get('SELECT * FROM team_contacts WHERE id = ?', req.params.id);
+    if (!existing) return res.status(404).json({ success: false, error: 'Contact not found' });
+    await run('DELETE FROM team_contacts WHERE id = ?', req.params.id);
+    res.json({ success: true, message: 'Contact deleted', data: existing });
+  } catch (err) {
+    console.error('Error deleting team contact:', err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// ─────────────────────────────────────────────
 // TEAM MEMBERS API
 // ─────────────────────────────────────────────
 
@@ -747,7 +817,7 @@ app.post('/api/team', async (req, res) => {
     if (!ev) return res.status(404).json({ success: false, error: 'Event not found' });
 
     // Enforce max per role
-    const maxByRole = { hairstylist: 5, saree_drapist: 5, assistant: 1, driver: 1 };
+    const maxByRole = { hairstylist: 5, makeup_artist: 5, saree_drapist: 5, assistant: 5, driver: 5 };
     const max = maxByRole[b.teamRole] || 5;
     const existing = await all(
       'SELECT id FROM team_members WHERE eventId = ? AND teamRole = ?',
@@ -767,9 +837,9 @@ app.post('/api/team', async (req, res) => {
       : (b.amountPaid || 0) > 0 ? 'partial' : 'pending';
 
     await run(
-      `INSERT INTO team_members (id, eventId, teamRole, memberName, amount, amountPaid, paymentStatus, notes, createdAt, updatedAt)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      id, b.eventId, b.teamRole, b.memberName || '', b.amount || 0, b.amountPaid || 0,
+      `INSERT INTO team_members (id, eventId, teamRole, memberName, contactId, amount, amountPaid, paymentStatus, notes, createdAt, updatedAt)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      id, b.eventId, b.teamRole, b.memberName || '', b.contactId || '', b.amount || 0, b.amountPaid || 0,
       paymentStatus, b.notes || '', now, now
     );
     const newRecord = await get('SELECT * FROM team_members WHERE id = ?', id);

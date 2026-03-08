@@ -55,11 +55,20 @@ export default function AddTravelScreen({ navigation, route }) {
     border: C.borderLight, primary: C.primary, surface: C.surface,
   };
   const preselectedEventId = route.params?.eventId || null;
+  const preselectedEventName = route.params?.eventName || null;
 
   // Event picker state
   const [events, setEvents] = useState([]);
   const [loadingEvents, setLoadingEvents] = useState(true);
-  const [selectedEvent, setSelectedEvent] = useState(null);
+  const [selectedEvent, setSelectedEvent] = useState(
+    preselectedEventId ? {
+      id: preselectedEventId,
+      clientName: preselectedEventName || '',
+      eventType: route.params?.eventType || '',
+      eventDate: route.params?.eventDate || '',
+      city: route.params?.eventCity || '',
+    } : null
+  );
   const [eventSearch, setEventSearch] = useState('');
   const [showEventPicker, setShowEventPicker] = useState(!preselectedEventId);
 
@@ -696,22 +705,25 @@ export default function AddTravelScreen({ navigation, route }) {
       </View>
 
       <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
-        {/* ── Event Selection ───────────────── */}
-        <SectionHeader icon="calendar" color={C.sectionEvent} title="Link to Event" />
+        {/* ── Event Selection ── */}
+        <SectionHeader icon="calendar" color={C.sectionEvent} title={preselectedEventId ? 'Linked to Event' : 'Link to Event'} />
 
         {selectedEvent ? (
           <TouchableOpacity
-            style={[styles.selectedEventCard, { backgroundColor: C.surface, borderColor: C.primary + '30' }]}
-            onPress={() => setShowEventPicker(true)}
+            style={[styles.selectedEventCard, { backgroundColor: preselectedEventId ? C.border : C.surface, borderColor: preselectedEventId ? C.border : C.primary + '30' }]}
+            onPress={() => !preselectedEventId && setShowEventPicker(true)}
+            activeOpacity={preselectedEventId ? 1 : 0.7}
+            disabled={!!preselectedEventId}
           >
             <View style={{ flex: 1 }}>
-              <Text style={[styles.selectedEventName, { color: C.text }]}>{selectedEvent.clientName}</Text>
+              <Text style={[styles.selectedEventName, { color: preselectedEventId ? C.textMuted : C.text }]}>{selectedEvent.clientName}</Text>
               <Text style={[styles.selectedEventInfo, { color: C.textSecondary }]}>
                 {selectedEvent.eventType} • {formatDate(selectedEvent.eventDate)}
                 {selectedEvent.city ? ` • ${selectedEvent.city}` : ''}
               </Text>
             </View>
-            <Ionicons name="chevron-forward" size={18} color={C.textMuted} />
+            {!preselectedEventId && <Ionicons name="chevron-forward" size={18} color={C.textMuted} />}
+            {preselectedEventId && <Ionicons name="lock-closed" size={16} color={C.textMuted} />}
           </TouchableOpacity>
         ) : (
           <TouchableOpacity

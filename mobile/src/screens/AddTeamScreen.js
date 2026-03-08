@@ -15,9 +15,27 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { getAllEvents } from '../api/events';
-import { createTeamMember } from '../api/team';
-import { COLORS, TEAM_ROLES } from '../constants';
+import { createTeamMember, getTeamContacts } from '../api/team';
+import { TEAM_ROLES, TEAM_ROLE_MAP } from '../constants';
 import { useTheme } from '../context/SettingsContext';
+
+/* ── helpers ───────────────────────────────────── */
+const formatDate = (d) => {
+  if (!d) return '';
+  const [y, m, day] = d.split('-');
+  const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  return `${parseInt(day, 10)} ${months[parseInt(m, 10) - 1]} ${y}`;
+};
+
+const emptyMember = () => ({
+  key: Date.now().toString() + Math.random().toString(36).slice(2, 6),
+  teamRole: '',
+  memberName: '',
+  contactId: '',
+  amount: '',
+  paymentOption: 'pending',
+  amountPaid: '',
+});
 
 /* ── section header component ─────────────────── */
 const SectionHeader = ({ icon, color, title }) => {
@@ -36,35 +54,48 @@ export default function AddTeamScreen({ navigation, route }) {
   const C = useTheme();
   const preselectedEventId = route.params?.eventId || null;
 
-  // Event picker
-  const [events, setEvents] = useState([]);
   const [selectedEventId, setSelectedEventId] = useState(preselectedEventId);
-  const [selectedEventLabel, setSelectedEventLabel] = useState('');
+  const [selectedEvent, setSelectedEvent] = useState(
+    preselectedEventId ? {
+      id: preselectedEventId,
+      clientName: route.params?.eventName || '',
+      eventType: route.params?.eventType || '',
+      eventDate: route.params?.eventDate || '',
+      city: route.params?.eventCity || '',
+    } : null
+  );
+  const [events, setEvents] = useState([]);
   const [eventPickerVisible, setEventPickerVisible] = useState(false);
   const [eventSearch, setEventSearch] = useState('');
 
-  // Form
-  const [teamRole, setTeamRole] = useState('hairstylist');
-  const [memberName, setMemberName] = useState('');
-  const [amount, setAmount] = useState('');
-  const [amountPaid, setAmountPaid] = useState('');
-  const [notes, setNotes] = useState('');
+  const [contacts, setContacts] = useState([]);
+  const [members, setMembers] = useState([emptyMember()]);
   const [saving, setSaving] = useState(false);
 
-  // Load events for picker
+  const [namePickerVisible, setNamePickerVisible] = useState(false);
+  const [namePickerIndex, setNamePickerIndex] = useState(0);
+  const [nameSearch, setNameSearch] = useState('');
+
+  const [rolePickerVisible, setRolePickerVisible] = useState(false);
+  const [rolePickerIndex, setRolePickerIndex] = useState(0);
+
   useEffect(() => {
     (async () => {
       try {
-        const res = await getAllEvents({ status: 'upcoming' });
-        if (res.success) {
-          setEvents(res.data);
-          if (preselectedEventId) {
-            const ev = res.data.find((e) => e.id === preselectedEventId);
-            if (ev) setSelectedEventLabel(`${ev.clientName} — ${ev.eventType}`);
+        const [evRes, ctRes] = await Promise.all([
+          getAllEvents({ status: 'upcoming' }),
+          getTeamContacts(),
+        ]);
+        if (evRes.success) {
+          setEvents(evRes.data);
+          if (preselectedEventId && !selectedEvent?.eventType) {
+            const ev = evRes.data.find((e) => e.id === preselectedEventId);
+            if (ev) setSelectedEvent(ev);
           }
         }
+        if (ctRes.success) setContacts(ctRes.data);
       } catch (err) {
-        console.error('Error loading events:', err);
+        console.error('Error loading data:', err);
       }
     })();
   }, []);
@@ -75,36 +106,78 @@ export default function AddTeamScreen({ navigation, route }) {
       e.eventType?.toLowerCase().includes(eventSearch.toLowerCase())
   );
 
+  const getFilteredContacts = (memberIndex) => {
+    const role = members[memberIndex]?.teamRole;
+    let list = contacts;
+    if (role) list = contacts.filter(c => c.defaultRole === role);
+    if (nameSearch) {
+      list = list.filter(c => c.name.toLowerCase().includes(nameSearch.toLowerCase()));
+    }
+    return list;
+  };
+
+  const updateMember = (index, field, value) => {
+    setMembers(prev => {
+      const updated = [...prev];
+      updated[index] = { ...updated[index], [field]: value };
+      return updated;
+    });
+  };
+
+  const removeMember = (index) => {
+    if (members.length <= 1) return;
+    setMembers(prev => prev.filter((_, i) => i !== index));
+  };
+
+  const addMember = () => {
+    setMembers(prev => [...prev, emptyMember()]);
+  };
+
   const handleSave = async () => {
     if (!selectedEventId) return Alert.alert('Required', 'Please select an event.');
-    if (!memberName.trim()) return Alert.alert('Required', 'Please enter the member name.');
-    if (!amount || parseFloat(amount) <= 0) return Alert.alert('Required', 'Please enter the amount to pay.');
+    for (let i = 0; i < members.length; i++) {
+      const m = members[i];
+      if (!m.teamRole) return Alert.alert('Required', `Please select a role for Member ${i + 1}.`);
+      if (!m.memberName.trim()) return Alert.alert('Required', `Please select or enter a name for Member ${i + 1}.`);
+      if (!m.amount || parseFloat(m.amount) <= 0) return Alert.alert('Required', `Please enter the amount for Member ${i + 1}.`);
+      if (m.paymentOption === 'partial') {
+        const paid = parseFloat(m.amountPaid) || 0;
+        const total = parseFloat(m.amount) || 0;
+        if (paid <= 0 || paid >= total) {
+          return Alert.alert('Invalid', `Please enter a valid partial amount for Member ${i + 1}.`);
+        }
+      }
+    }
 
     setSaving(true);
     try {
-      const res = await createTeamMember({
-        eventId: selectedEventId,
-        teamRole,
-        memberName: memberName.trim(),
-        amount: parseFloat(amount) || 0,
-        amountPaid: parseFloat(amountPaid) || 0,
-        notes: notes.trim(),
-      });
-      if (res.success) {
-        navigation.goBack();
-      } else {
-        Alert.alert('Error', res.error || 'Could not save team member.');
+      for (const m of members) {
+        const amountPaid = m.paymentOption === 'paid'
+          ? parseFloat(m.amount) || 0
+          : m.paymentOption === 'partial'
+            ? parseFloat(m.amountPaid) || 0
+            : 0;
+        const res = await createTeamMember({
+          eventId: selectedEventId,
+          teamRole: m.teamRole,
+          memberName: m.memberName.trim(),
+          contactId: m.contactId || '',
+          amount: parseFloat(m.amount) || 0,
+          amountPaid,
+        });
+        if (!res.success) {
+          Alert.alert('Error', res.error || `Could not save ${m.memberName}.`);
+          setSaving(false);
+          return;
+        }
       }
+      navigation.goBack();
     } catch (err) {
-      Alert.alert('Error', err.response?.data?.error || 'Could not save team member.');
+      Alert.alert('Error', err.response?.data?.error || 'Could not save team members.');
     } finally {
       setSaving(false);
     }
   };
-
-  const parsedAmount = parseFloat(amount) || 0;
-  const parsedPaid = parseFloat(amountPaid) || 0;
-  const balance = Math.max(0, parsedAmount - parsedPaid);
 
   return (
     <KeyboardAvoidingView
@@ -113,120 +186,186 @@ export default function AddTeamScreen({ navigation, route }) {
     >
       <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
 
-        {/* ── Link to Event ── */}
+        {/* ── Linked to Event ── */}
         <View style={[styles.card, { backgroundColor: C.surface, borderColor: C.borderLight }]}>
-          <SectionHeader icon="calendar" color={C.primary} title="Link to Event" />
-          <TouchableOpacity
-            style={[styles.picker, { borderColor: C.border, backgroundColor: C.inputBg }]}
-            onPress={() => setEventPickerVisible(true)}
-          >
-            <Text style={[styles.pickerText, { color: selectedEventId ? C.text : C.textMuted }]}>
-              {selectedEventLabel || 'Select an event…'}
-            </Text>
-            <Ionicons name="chevron-down" size={18} color={C.textMuted} />
-          </TouchableOpacity>
-        </View>
-
-        {/* ── Role Selector ── */}
-        <View style={[styles.card, { backgroundColor: C.surface, borderColor: C.borderLight }]}>
-          <SectionHeader icon="people" color="#8E24AA" title="Team Role" />
-          <View style={styles.roleGrid}>
-            {TEAM_ROLES.map((r) => {
-              const active = teamRole === r.key;
-              return (
-                <TouchableOpacity
-                  key={r.key}
-                  style={[
-                    styles.roleChip,
-                    { borderColor: active ? r.color : C.borderLight, backgroundColor: active ? r.color + '15' : C.inputBg },
-                  ]}
-                  onPress={() => setTeamRole(r.key)}
-                >
-                  <Ionicons name={r.icon} size={18} color={active ? r.color : C.textMuted} />
-                  <Text style={[styles.roleLabel, { color: active ? r.color : C.textSecondary }]}>{r.label}</Text>
-                  <Text style={[styles.roleMax, { color: C.textMuted }]}>Max {r.max}</Text>
-                </TouchableOpacity>
-              );
-            })}
-          </View>
-        </View>
-
-        {/* ── Member Details ── */}
-        <View style={[styles.card, { backgroundColor: C.surface, borderColor: C.borderLight }]}>
-          <SectionHeader icon="person" color="#1565C0" title="Member Details" />
-          <Text style={[styles.label, { color: C.textSecondary }]}>Name</Text>
-          <TextInput
-            style={[styles.input, { borderColor: C.border, backgroundColor: C.inputBg, color: C.text }]}
-            placeholder="Enter member name"
-            placeholderTextColor={C.textMuted}
-            value={memberName}
-            onChangeText={setMemberName}
-          />
-          <Text style={[styles.label, { color: C.textSecondary }]}>Notes (optional)</Text>
-          <TextInput
-            style={[styles.input, styles.textArea, { borderColor: C.border, backgroundColor: C.inputBg, color: C.text }]}
-            placeholder="Any notes…"
-            placeholderTextColor={C.textMuted}
-            value={notes}
-            onChangeText={setNotes}
-            multiline
-            numberOfLines={3}
-          />
-        </View>
-
-        {/* ── Payment ── */}
-        <View style={[styles.card, { backgroundColor: C.surface, borderColor: C.borderLight }]}>
-          <SectionHeader icon="wallet" color="#D4883E" title="Payment" />
-          <Text style={[styles.label, { color: C.textSecondary }]}>Amount to Pay (₹)</Text>
-          <TextInput
-            style={[styles.input, { borderColor: C.border, backgroundColor: C.inputBg, color: C.text }]}
-            placeholder="0"
-            placeholderTextColor={C.textMuted}
-            value={amount}
-            onChangeText={setAmount}
-            keyboardType="numeric"
-          />
-          <Text style={[styles.label, { color: C.textSecondary }]}>Amount Paid (₹)</Text>
-          <TextInput
-            style={[styles.input, { borderColor: C.border, backgroundColor: C.inputBg, color: C.text }]}
-            placeholder="0"
-            placeholderTextColor={C.textMuted}
-            value={amountPaid}
-            onChangeText={setAmountPaid}
-            keyboardType="numeric"
-          />
-
-          {/* Payment summary */}
-          {parsedAmount > 0 && (
-            <View style={[styles.paymentSummary, { borderTopColor: C.borderLight }]}>
-              <View style={styles.payRow}>
-                <Text style={[styles.payLabel, { color: C.textSecondary }]}>Total</Text>
-                <Text style={[styles.payValue, { color: C.text }]}>₹{parsedAmount.toLocaleString('en-IN')}</Text>
-              </View>
-              <View style={styles.payRow}>
-                <Text style={[styles.payLabel, { color: C.textSecondary }]}>Paid</Text>
-                <Text style={[styles.payValue, { color: '#2D8B5F' }]}>₹{parsedPaid.toLocaleString('en-IN')}</Text>
-              </View>
-              {balance > 0 && (
-                <View style={styles.payRow}>
-                  <Text style={[styles.payLabel, { color: C.warning }]}>Balance</Text>
-                  <Text style={[styles.payValue, { color: C.warning, fontWeight: '700' }]}>₹{balance.toLocaleString('en-IN')}</Text>
-                </View>
-              )}
-              <View style={[styles.statusRow, { backgroundColor: parsedPaid >= parsedAmount ? '#E8F5EE' : parsedPaid > 0 ? '#FFF3E0' : '#FFEBEE' }]}>
-                <Ionicons
-                  name={parsedPaid >= parsedAmount ? 'checkmark-circle' : parsedPaid > 0 ? 'remove-circle' : 'time'}
-                  size={16}
-                  color={parsedPaid >= parsedAmount ? '#2D8B5F' : parsedPaid > 0 ? '#D4883E' : '#C62828'}
-                />
-                <Text style={[styles.statusText, {
-                  color: parsedPaid >= parsedAmount ? '#2D8B5F' : parsedPaid > 0 ? '#D4883E' : '#C62828',
-                }]}>
-                  {parsedPaid >= parsedAmount ? 'Fully Paid' : parsedPaid > 0 ? 'Partially Paid' : 'Pending'}
+          <SectionHeader icon="calendar" color={C.primary} title={preselectedEventId ? 'Linked to Event' : 'Link to Event'} />
+          {selectedEvent ? (
+            <TouchableOpacity
+              style={[styles.selectedEventCard, {
+                backgroundColor: preselectedEventId ? C.border : C.surface,
+                borderColor: preselectedEventId ? C.border : C.primary + '30',
+              }]}
+              onPress={() => !preselectedEventId && setEventPickerVisible(true)}
+              activeOpacity={preselectedEventId ? 1 : 0.7}
+              disabled={!!preselectedEventId}
+            >
+              <View style={{ flex: 1 }}>
+                <Text style={[styles.selectedEventName, { color: preselectedEventId ? C.textMuted : C.text }]}>
+                  {selectedEvent.clientName}
+                </Text>
+                <Text style={[styles.selectedEventInfo, { color: C.textSecondary }]}>
+                  {selectedEvent.eventType}{selectedEvent.eventDate ? ` • ${formatDate(selectedEvent.eventDate)}` : ''}
+                  {selectedEvent.city ? ` • ${selectedEvent.city}` : ''}
                 </Text>
               </View>
-            </View>
+              {!preselectedEventId && <Ionicons name="chevron-forward" size={18} color={C.textMuted} />}
+              {preselectedEventId && <Ionicons name="lock-closed" size={16} color={C.textMuted} />}
+            </TouchableOpacity>
+          ) : (
+            <TouchableOpacity
+              style={[styles.picker, { borderColor: C.border, backgroundColor: C.inputBg }]}
+              onPress={() => setEventPickerVisible(true)}
+            >
+              <Text style={[styles.pickerText, { color: C.textMuted }]}>Select an event…</Text>
+              <Ionicons name="chevron-down" size={18} color={C.textMuted} />
+            </TouchableOpacity>
           )}
+        </View>
+
+        {/* ── Team Members ── */}
+        <View style={[styles.card, { backgroundColor: C.surface, borderColor: C.borderLight }]}>
+          <SectionHeader icon="people" color="#8E24AA" title="Team" />
+
+          {members.map((member, index) => {
+            const roleInfo = TEAM_ROLE_MAP[member.teamRole];
+            const parsedAmount = parseFloat(member.amount) || 0;
+            const parsedPaid = member.paymentOption === 'paid' ? parsedAmount
+              : member.paymentOption === 'partial' ? (parseFloat(member.amountPaid) || 0)
+              : 0;
+
+            return (
+              <View key={member.key} style={[styles.memberBlock, { borderColor: C.borderLight }]}>
+                <View style={styles.memberHeader}>
+                  <View style={[styles.memberBadge, { backgroundColor: C.primaryLight }]}>
+                    <Text style={[styles.memberBadgeText, { color: C.primary }]}>{index + 1}</Text>
+                  </View>
+                  <Text style={[styles.memberTitle, { color: C.text }]}>Member {index + 1}</Text>
+                  {members.length > 1 && (
+                    <TouchableOpacity onPress={() => removeMember(index)} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+                      <Ionicons name="trash-outline" size={18} color={C.danger} />
+                    </TouchableOpacity>
+                  )}
+                </View>
+
+                <Text style={[styles.label, { color: C.textSecondary }]}>Role</Text>
+                <TouchableOpacity
+                  style={[styles.picker, { borderColor: C.border, backgroundColor: C.inputBg }]}
+                  onPress={() => { setRolePickerIndex(index); setRolePickerVisible(true); }}
+                >
+                  {roleInfo ? (
+                    <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1, gap: 8 }}>
+                      <Ionicons name={roleInfo.icon} size={16} color={roleInfo.color} />
+                      <Text style={[styles.pickerText, { color: C.text }]}>{roleInfo.label}</Text>
+                    </View>
+                  ) : (
+                    <Text style={[styles.pickerText, { color: C.textMuted }]}>Select role…</Text>
+                  )}
+                  <Ionicons name="chevron-down" size={18} color={C.textMuted} />
+                </TouchableOpacity>
+
+                <Text style={[styles.label, { color: C.textSecondary }]}>Name</Text>
+                <TouchableOpacity
+                  style={[styles.picker, { borderColor: C.border, backgroundColor: C.inputBg }]}
+                  onPress={() => {
+                    setNamePickerIndex(index);
+                    setNameSearch('');
+                    setNamePickerVisible(true);
+                  }}
+                >
+                  <Text style={[styles.pickerText, { color: member.memberName ? C.text : C.textMuted }]}>
+                    {member.memberName || 'Select name…'}
+                  </Text>
+                  <Ionicons name="chevron-down" size={18} color={C.textMuted} />
+                </TouchableOpacity>
+
+                <Text style={[styles.label, { color: C.textSecondary }]}>Amount to Pay (₹)</Text>
+                <TextInput
+                  style={[styles.input, { borderColor: C.border, backgroundColor: C.inputBg, color: C.text }]}
+                  placeholder="0"
+                  placeholderTextColor={C.textMuted}
+                  value={member.amount}
+                  onChangeText={(v) => updateMember(index, 'amount', v)}
+                  keyboardType="numeric"
+                />
+
+                <Text style={[styles.label, { color: C.textSecondary }]}>Payment Status</Text>
+                <View style={styles.checkboxRow}>
+                  <TouchableOpacity
+                    style={[styles.checkboxItem, {
+                      borderColor: member.paymentOption === 'paid' ? '#2D8B5F' : C.border,
+                      backgroundColor: member.paymentOption === 'paid' ? '#E8F5EE' : C.inputBg,
+                    }]}
+                    onPress={() => updateMember(index, 'paymentOption', member.paymentOption === 'paid' ? 'pending' : 'paid')}
+                  >
+                    <Ionicons
+                      name={member.paymentOption === 'paid' ? 'checkbox' : 'square-outline'}
+                      size={20}
+                      color={member.paymentOption === 'paid' ? '#2D8B5F' : C.textMuted}
+                    />
+                    <Text style={[styles.checkboxLabel, { color: member.paymentOption === 'paid' ? '#2D8B5F' : C.text }]}>Paid</Text>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    style={[styles.checkboxItem, {
+                      borderColor: member.paymentOption === 'partial' ? '#D4883E' : C.border,
+                      backgroundColor: member.paymentOption === 'partial' ? '#FFF3E0' : C.inputBg,
+                    }]}
+                    onPress={() => updateMember(index, 'paymentOption', member.paymentOption === 'partial' ? 'pending' : 'partial')}
+                  >
+                    <Ionicons
+                      name={member.paymentOption === 'partial' ? 'checkbox' : 'square-outline'}
+                      size={20}
+                      color={member.paymentOption === 'partial' ? '#D4883E' : C.textMuted}
+                    />
+                    <Text style={[styles.checkboxLabel, { color: member.paymentOption === 'partial' ? '#D4883E' : C.text }]}>Partially Paid</Text>
+                  </TouchableOpacity>
+                </View>
+
+                {member.paymentOption === 'partial' && (
+                  <View>
+                    <Text style={[styles.label, { color: C.textSecondary }]}>Amount Paid (₹)</Text>
+                    <TextInput
+                      style={[styles.input, { borderColor: C.border, backgroundColor: C.inputBg, color: C.text }]}
+                      placeholder="0"
+                      placeholderTextColor={C.textMuted}
+                      value={member.amountPaid}
+                      onChangeText={(v) => updateMember(index, 'amountPaid', v)}
+                      keyboardType="numeric"
+                    />
+                  </View>
+                )}
+
+                {parsedAmount > 0 && (
+                  <View style={[styles.miniSummary, {
+                    backgroundColor: member.paymentOption === 'paid' ? '#E8F5EE' : member.paymentOption === 'partial' ? '#FFF3E0' : '#FFEBEE',
+                  }]}>
+                    <Ionicons
+                      name={member.paymentOption === 'paid' ? 'checkmark-circle' : member.paymentOption === 'partial' ? 'remove-circle' : 'time'}
+                      size={14}
+                      color={member.paymentOption === 'paid' ? '#2D8B5F' : member.paymentOption === 'partial' ? '#D4883E' : '#C62828'}
+                    />
+                    <Text style={[styles.miniSummaryText, {
+                      color: member.paymentOption === 'paid' ? '#2D8B5F' : member.paymentOption === 'partial' ? '#D4883E' : '#C62828',
+                    }]}>
+                      {member.paymentOption === 'paid'
+                        ? `Fully Paid — ₹${parsedAmount.toLocaleString('en-IN')}`
+                        : member.paymentOption === 'partial'
+                          ? `₹${parsedPaid.toLocaleString('en-IN')} paid of ₹${parsedAmount.toLocaleString('en-IN')} — ₹${Math.max(0, parsedAmount - parsedPaid).toLocaleString('en-IN')} due`
+                          : `Pending — ₹${parsedAmount.toLocaleString('en-IN')}`}
+                    </Text>
+                  </View>
+                )}
+              </View>
+            );
+          })}
+
+          <TouchableOpacity
+            style={[styles.addMemberBtn, { borderColor: C.primary + '40', backgroundColor: C.primaryLight }]}
+            onPress={addMember}
+          >
+            <Ionicons name="add-circle" size={20} color={C.primary} />
+            <Text style={[styles.addMemberText, { color: C.primary }]}>Add Another Member</Text>
+          </TouchableOpacity>
         </View>
 
         {/* ── Save Button ── */}
@@ -240,7 +379,9 @@ export default function AddTeamScreen({ navigation, route }) {
           ) : (
             <>
               <Ionicons name="checkmark-circle" size={20} color="#FFF" />
-              <Text style={styles.saveBtnText}>Add Team Member</Text>
+              <Text style={styles.saveBtnText}>
+                Save {members.length > 1 ? `${members.length} Members` : 'Team Member'}
+              </Text>
             </>
           )}
         </TouchableOpacity>
@@ -273,17 +414,137 @@ export default function AddTeamScreen({ navigation, route }) {
                   style={[styles.modalItem, { borderBottomColor: C.borderLight }]}
                   onPress={() => {
                     setSelectedEventId(item.id);
-                    setSelectedEventLabel(`${item.clientName} — ${item.eventType}`);
+                    setSelectedEvent(item);
                     setEventPickerVisible(false);
                     setEventSearch('');
                   }}
                 >
                   <Text style={[styles.modalItemName, { color: C.text }]}>{item.clientName}</Text>
-                  <Text style={[styles.modalItemSub, { color: C.textSecondary }]}>{item.eventType}</Text>
+                  <Text style={[styles.modalItemSub, { color: C.textSecondary }]}>
+                    {item.eventType}{item.eventDate ? ` • ${formatDate(item.eventDate)}` : ''}
+                  </Text>
                 </TouchableOpacity>
               )}
               ListEmptyComponent={
                 <Text style={[styles.emptyText, { color: C.textMuted }]}>No events found</Text>
+              }
+            />
+          </View>
+        </View>
+      </Modal>
+
+      {/* ── Role Picker Modal ── */}
+      <Modal visible={rolePickerVisible} animationType="slide" transparent>
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalContent, { backgroundColor: C.surface }]}>
+            <View style={styles.modalHeader}>
+              <Text style={[styles.modalTitle, { color: C.text }]}>Select Role</Text>
+              <TouchableOpacity onPress={() => setRolePickerVisible(false)}>
+                <Ionicons name="close" size={24} color={C.textMuted} />
+              </TouchableOpacity>
+            </View>
+            {TEAM_ROLES.map((r) => {
+              const active = members[rolePickerIndex]?.teamRole === r.key;
+              return (
+                <TouchableOpacity
+                  key={r.key}
+                  style={[styles.rolePickerItem, {
+                    borderBottomColor: C.borderLight,
+                    backgroundColor: active ? r.color + '12' : 'transparent',
+                  }]}
+                  onPress={() => {
+                    updateMember(rolePickerIndex, 'teamRole', r.key);
+                    const currentContact = contacts.find(c => c.id === members[rolePickerIndex]?.contactId);
+                    if (currentContact && currentContact.defaultRole !== r.key) {
+                      updateMember(rolePickerIndex, 'memberName', '');
+                      updateMember(rolePickerIndex, 'contactId', '');
+                    }
+                    setRolePickerVisible(false);
+                  }}
+                >
+                  <View style={[styles.rolePickerIcon, { backgroundColor: r.color + '18' }]}>
+                    <Ionicons name={r.icon} size={20} color={r.color} />
+                  </View>
+                  <Text style={[styles.rolePickerLabel, { color: active ? r.color : C.text }]}>{r.label}</Text>
+                  {active && <Ionicons name="checkmark" size={20} color={r.color} />}
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+        </View>
+      </Modal>
+
+      {/* ── Name Picker Modal ── */}
+      <Modal visible={namePickerVisible} animationType="slide" transparent>
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalContent, { backgroundColor: C.surface }]}>
+            <View style={styles.modalHeader}>
+              <Text style={[styles.modalTitle, { color: C.text }]}>Select Name</Text>
+              <TouchableOpacity onPress={() => setNamePickerVisible(false)}>
+                <Ionicons name="close" size={24} color={C.textMuted} />
+              </TouchableOpacity>
+            </View>
+            <TextInput
+              style={[styles.modalSearch, { borderColor: C.border, backgroundColor: C.inputBg, color: C.text }]}
+              placeholder="Search or type a new name…"
+              placeholderTextColor={C.textMuted}
+              value={nameSearch}
+              onChangeText={setNameSearch}
+            />
+            <FlatList
+              data={getFilteredContacts(namePickerIndex)}
+              keyExtractor={(item) => item.id}
+              ListHeaderComponent={
+                nameSearch.trim() ? (
+                  <TouchableOpacity
+                    style={[styles.modalItem, { borderBottomColor: C.borderLight, flexDirection: 'row', alignItems: 'center', gap: 8 }]}
+                    onPress={() => {
+                      updateMember(namePickerIndex, 'memberName', nameSearch.trim());
+                      updateMember(namePickerIndex, 'contactId', '');
+                      setNamePickerVisible(false);
+                      setNameSearch('');
+                    }}
+                  >
+                    <Ionicons name="pencil" size={16} color={C.primary} />
+                    <Text style={[styles.modalItemName, { color: C.primary }]}>Use "{nameSearch.trim()}"</Text>
+                  </TouchableOpacity>
+                ) : null
+              }
+              renderItem={({ item }) => {
+                const roleData = TEAM_ROLE_MAP[item.defaultRole];
+                return (
+                  <TouchableOpacity
+                    style={[styles.modalItem, { borderBottomColor: C.borderLight }]}
+                    onPress={() => {
+                      updateMember(namePickerIndex, 'memberName', item.name);
+                      updateMember(namePickerIndex, 'contactId', item.id);
+                      if (!members[namePickerIndex]?.teamRole && item.defaultRole) {
+                        updateMember(namePickerIndex, 'teamRole', item.defaultRole);
+                      }
+                      setNamePickerVisible(false);
+                      setNameSearch('');
+                    }}
+                  >
+                    <Text style={[styles.modalItemName, { color: C.text }]}>{item.name}</Text>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 2 }}>
+                      {roleData && <Ionicons name={roleData.icon} size={12} color={roleData.color} />}
+                      <Text style={[styles.modalItemSub, { color: C.textSecondary }]}>
+                        {roleData?.label || item.defaultRole}
+                      </Text>
+                    </View>
+                  </TouchableOpacity>
+                );
+              }}
+              ListEmptyComponent={
+                !nameSearch.trim() ? (
+                  <View style={{ padding: 24, alignItems: 'center' }}>
+                    <Ionicons name="people-outline" size={32} color={C.textMuted} />
+                    <Text style={[styles.emptyText, { color: C.textMuted }]}>No contacts yet</Text>
+                    <Text style={[styles.emptyHint, { color: C.textMuted }]}>
+                      Add team members from Home → My Team
+                    </Text>
+                  </View>
+                ) : null
               }
             />
           </View>
@@ -295,45 +556,46 @@ export default function AddTeamScreen({ navigation, route }) {
 
 const styles = StyleSheet.create({
   scroll: { padding: 16, paddingBottom: 40 },
-  card: {
-    borderRadius: 14, borderWidth: 1, padding: 16, marginBottom: 14,
-  },
+  card: { borderRadius: 14, borderWidth: 1, padding: 16, marginBottom: 14 },
   sectionHeader: { flexDirection: 'row', alignItems: 'center', marginBottom: 14 },
   sectionIcon: { width: 30, height: 30, borderRadius: 15, justifyContent: 'center', alignItems: 'center', marginRight: 10 },
   sectionTitle: { fontSize: 16, fontWeight: '700' },
+  selectedEventCard: { flexDirection: 'row', alignItems: 'center', padding: 14, borderRadius: 10, borderWidth: 1 },
+  selectedEventName: { fontSize: 15, fontWeight: '600', marginBottom: 2 },
+  selectedEventInfo: { fontSize: 13 },
   picker: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
     borderWidth: 1, borderRadius: 10, paddingHorizontal: 14, paddingVertical: 13,
   },
   pickerText: { fontSize: 15, flex: 1 },
-  roleGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
-  roleChip: {
-    flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
-    borderWidth: 1.5, borderRadius: 12, paddingVertical: 14, paddingHorizontal: 12,
-    width: '47%',
+  label: { fontSize: 13, fontWeight: '600', marginBottom: 6, marginTop: 12 },
+  input: { borderWidth: 1, borderRadius: 10, paddingHorizontal: 14, paddingVertical: 12, fontSize: 15 },
+  memberBlock: { borderWidth: 1, borderRadius: 12, padding: 14, marginBottom: 14 },
+  memberHeader: { flexDirection: 'row', alignItems: 'center', marginBottom: 4, gap: 8 },
+  memberBadge: { width: 26, height: 26, borderRadius: 13, justifyContent: 'center', alignItems: 'center' },
+  memberBadgeText: { fontSize: 13, fontWeight: '700' },
+  memberTitle: { fontSize: 15, fontWeight: '700', flex: 1 },
+  checkboxRow: { flexDirection: 'row', gap: 10 },
+  checkboxItem: {
+    flex: 1, flexDirection: 'row', alignItems: 'center', gap: 8,
+    paddingVertical: 12, paddingHorizontal: 14, borderRadius: 10, borderWidth: 1,
   },
-  roleLabel: { fontSize: 13, fontWeight: '600', marginTop: 6 },
-  roleMax: { fontSize: 10, marginTop: 2 },
-  label: { fontSize: 13, fontWeight: '600', marginBottom: 6, marginTop: 10 },
-  input: {
-    borderWidth: 1, borderRadius: 10, paddingHorizontal: 14, paddingVertical: 12, fontSize: 15,
-  },
-  textArea: { minHeight: 70, textAlignVertical: 'top' },
-  paymentSummary: { borderTopWidth: 1, marginTop: 14, paddingTop: 12 },
-  payRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 6 },
-  payLabel: { fontSize: 13 },
-  payValue: { fontSize: 14, fontWeight: '600' },
-  statusRow: {
-    flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 8,
+  checkboxLabel: { fontSize: 14, fontWeight: '600' },
+  miniSummary: {
+    flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 12,
     paddingVertical: 8, paddingHorizontal: 12, borderRadius: 8,
   },
-  statusText: { fontSize: 13, fontWeight: '600' },
+  miniSummaryText: { fontSize: 12, fontWeight: '600', flex: 1 },
+  addMemberBtn: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
+    paddingVertical: 14, borderRadius: 12, borderWidth: 1, borderStyle: 'dashed',
+  },
+  addMemberText: { fontSize: 14, fontWeight: '700' },
   saveBtn: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
     borderRadius: 12, paddingVertical: 16, marginTop: 8,
   },
   saveBtnText: { fontSize: 16, fontWeight: '700', color: '#FFF' },
-  // Modal
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
   modalContent: { borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 20, maxHeight: '70%' },
   modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
@@ -342,5 +604,12 @@ const styles = StyleSheet.create({
   modalItem: { paddingVertical: 14, borderBottomWidth: 1 },
   modalItemName: { fontSize: 15, fontWeight: '600' },
   modalItemSub: { fontSize: 12, marginTop: 2 },
-  emptyText: { textAlign: 'center', paddingVertical: 30, fontSize: 14 },
+  emptyText: { textAlign: 'center', paddingVertical: 10, fontSize: 14 },
+  emptyHint: { textAlign: 'center', fontSize: 12, marginTop: 4 },
+  rolePickerItem: {
+    flexDirection: 'row', alignItems: 'center', paddingVertical: 14, paddingHorizontal: 4,
+    borderBottomWidth: 1, gap: 12,
+  },
+  rolePickerIcon: { width: 38, height: 38, borderRadius: 12, justifyContent: 'center', alignItems: 'center' },
+  rolePickerLabel: { fontSize: 15, fontWeight: '600', flex: 1 },
 });

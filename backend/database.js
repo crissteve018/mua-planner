@@ -34,6 +34,7 @@ const CAMEL_COLUMNS = [
   'expiresAt','reminderNumber','scheduledFor','sentAt',
   'eventStatus','maxLeg',
   'memberName','teamRole','amount','amountPaid','paymentStatus',
+  'defaultRole','contactId',
 ];
 const COL_MAP = {};
 for (const c of CAMEL_COLUMNS) COL_MAP[c.toLowerCase()] = c;
@@ -182,9 +183,22 @@ async function initializeDatabase() {
       eventId TEXT NOT NULL REFERENCES events(id) ON DELETE CASCADE,
       teamRole TEXT NOT NULL DEFAULT 'assistant',
       memberName TEXT DEFAULT '',
+      contactId TEXT DEFAULT '',
       amount REAL DEFAULT 0,
       amountPaid REAL DEFAULT 0,
       paymentStatus TEXT DEFAULT 'pending',
+      notes TEXT DEFAULT '',
+      createdAt TEXT DEFAULT '',
+      updatedAt TEXT DEFAULT ''
+    )
+  `);
+
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS team_contacts (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      defaultRole TEXT NOT NULL DEFAULT 'assistant',
+      phone TEXT DEFAULT '',
       notes TEXT DEFAULT '',
       createdAt TEXT DEFAULT '',
       updatedAt TEXT DEFAULT ''

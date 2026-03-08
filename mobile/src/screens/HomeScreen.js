@@ -296,6 +296,35 @@ export default function HomeScreen({ navigation }) {
         </View>
       </View>
 
+      {/* ── My Team ── */}
+      <View style={styles.section}>
+        <TouchableOpacity
+          style={styles.sectionHeaderRow}
+          activeOpacity={0.7}
+          onPress={() => navigation.navigate('ManageTeam')}
+        >
+          <Text style={[styles.sectionTitle, { color: C.text }]}>👥 My Team</Text>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+            <Text style={[styles.seeAll, { color: C.primary }]}>Manage</Text>
+            <Ionicons name="chevron-forward" size={14} color={C.primary} />
+          </View>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[styles.myTeamCard, { backgroundColor: C.surface, borderColor: C.borderLight }]}
+          activeOpacity={0.7}
+          onPress={() => navigation.navigate('ManageTeam')}
+        >
+          <View style={[styles.myTeamIcon, { backgroundColor: '#8E24AA18' }]}>
+            <Ionicons name="people" size={22} color="#8E24AA" />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={[styles.myTeamTitle, { color: C.text }]}>Team Contacts</Text>
+            <Text style={[styles.myTeamHint, { color: C.textSecondary }]}>Save your frequent team members for quick access</Text>
+          </View>
+          <Ionicons name="chevron-forward" size={18} color={C.textMuted} />
+        </TouchableOpacity>
+      </View>
+
       {/* ── Quick Actions ── */}
       <View style={[styles.section, { marginBottom: 30 }]}>
         <Text style={[styles.sectionTitle, { color: C.text }]}>⚡ Quick Actions</Text>
@@ -619,4 +648,30 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: '700',
   },
+
+  // My Team
+  sectionHeaderRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  seeAll: { fontSize: 13, fontWeight: '600' },
+  myTeamCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 16,
+    borderRadius: 14,
+    borderWidth: 1,
+    gap: 14,
+  },
+  myTeamIcon: {
+    width: 44,
+    height: 44,
+    borderRadius: 14,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  myTeamTitle: { fontSize: 15, fontWeight: '700' },
+  myTeamHint: { fontSize: 12, marginTop: 2 },
 });

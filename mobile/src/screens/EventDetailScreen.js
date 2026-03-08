@@ -420,7 +420,7 @@ export default function EventDetailScreen({ route, navigation }) {
             <SectionHeader icon="airplane" iconColor={C.sectionTravel || '#00796B'} title="Travel" />
             <TouchableOpacity
               style={{ flexDirection: 'row', alignItems: 'center', gap: 4, paddingVertical: 4, paddingHorizontal: 8 }}
-              onPress={() => navigation.navigate('AddTravel', { eventId: event.id })}
+              onPress={() => navigation.navigate('AddTravel', { eventId: event.id, eventName: event.clientName, eventType: event.eventType, eventDate: event.eventDate, eventCity: event.city })}
             >
               <Ionicons name="add-circle" size={18} color={C.primary} />
               <Text style={{ fontSize: 13, fontWeight: '600', color: C.primary }}>Add</Text>
@@ -506,7 +506,7 @@ export default function EventDetailScreen({ route, navigation }) {
             <SectionHeader icon="people" iconColor="#8E24AA" title="Team" />
             <TouchableOpacity
               style={{ flexDirection: 'row', alignItems: 'center', gap: 4, paddingVertical: 4, paddingHorizontal: 8 }}
-              onPress={() => navigation.navigate('AddTeam', { eventId: event.id })}
+              onPress={() => navigation.navigate('AddTeam', { eventId: event.id, eventName: event.clientName, eventType: event.eventType, eventDate: event.eventDate, eventCity: event.city })}
             >
               <Ionicons name="add-circle" size={18} color={C.primary} />
               <Text style={{ fontSize: 13, fontWeight: '600', color: C.primary }}>Add</Text>
