@@ -20,6 +20,9 @@ import CancelEventScreen from './src/screens/CancelEventScreen';
 import AddTravelScreen from './src/screens/AddTravelScreen';
 import EditTravelScreen from './src/screens/EditTravelScreen';
 
+import AddTeamScreen from './src/screens/AddTeamScreen';
+import EditTeamScreen from './src/screens/EditTeamScreen';
+
 import HomeScreen from './src/screens/HomeScreen';
 import CalendarScreen from './src/screens/CalendarScreen';
 import SettingsScreen from './src/screens/SettingsScreen';
@@ -112,6 +115,16 @@ function EventsStack() {
         name="EditTravel"
         component={EditTravelScreen}
         options={{ title: 'Edit Travel' }}
+      />
+      <Stack.Screen
+        name="AddTeam"
+        component={AddTeamScreen}
+        options={{ title: 'Add Team Member', presentation: 'modal' }}
+      />
+      <Stack.Screen
+        name="EditTeam"
+        component={EditTeamScreen}
+        options={{ title: 'Edit Team Member' }}
       />
     </Stack.Navigator>
   );

@@ -15,7 +15,8 @@ import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
 import { getEventById, deleteEvent, undoDeleteEvent } from '../api/events';
 import { getTravelSummary, getTravelById, deleteTravel } from '../api/travel';
-import { COLORS, EVENT_TYPE_EMOJI, STATUS_CONFIG, MONEY_OPTIONS, TRAVEL_MODE_MAP, TRAVEL_STATUS_MAP } from '../constants';
+import { getTeamSummary, deleteTeamMember } from '../api/team';
+import { COLORS, EVENT_TYPE_EMOJI, STATUS_CONFIG, MONEY_OPTIONS, TRAVEL_MODE_MAP, TRAVEL_STATUS_MAP, TEAM_ROLE_MAP, PAYMENT_STATUS_MAP } from '../constants';
 import { useTheme } from '../context/SettingsContext';
 import UndoSnackbar from '../components/UndoSnackbar';
 
@@ -40,6 +41,7 @@ export default function EventDetailScreen({ route, navigation }) {
   const deletedRef = useRef(null);
   const [travelData, setTravelData] = useState({ records: [], totalCost: 0, legCount: 0 });
   const [travelModal, setTravelModal] = useState({ visible: false, record: null, loading: false });
+  const [teamData, setTeamData] = useState({ members: [], totalAmount: 0, totalPaid: 0, count: 0 });
 
   const fetchEvent = async () => {
     try {
@@ -60,6 +62,30 @@ export default function EventDetailScreen({ route, navigation }) {
     } catch (err) {
       console.error('Error fetching travel summary:', err);
     }
+  };
+
+  const fetchTeam = async () => {
+    try {
+      const res = await getTeamSummary(eventId);
+      if (res.success) setTeamData(res.data);
+    } catch (err) {
+      console.error('Error fetching team summary:', err);
+    }
+  };
+
+  const handleDeleteTeamMember = (member) => {
+    Alert.alert('Delete Team Member', `Remove ${member.memberName || 'this member'}?`, [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Delete', style: 'destructive',
+        onPress: async () => {
+          try {
+            await deleteTeamMember(member.id);
+            fetchTeam();
+          } catch (err) { Alert.alert('Error', 'Could not delete team member.'); }
+        },
+      },
+    ]);
   };
 
   const openTravelDetail = async (travelId) => {
@@ -91,7 +117,7 @@ export default function EventDetailScreen({ route, navigation }) {
   };
 
   useFocusEffect(
-    useCallback(() => { fetchEvent(); fetchTravel(); }, [eventId])
+    useCallback(() => { fetchEvent(); fetchTravel(); fetchTeam(); }, [eventId])
   );
 
   // ─── Actions ────────────────────────────────
@@ -470,6 +496,99 @@ export default function EventDetailScreen({ route, navigation }) {
             <View style={{ alignItems: 'center', paddingVertical: 16 }}>
               <Ionicons name="airplane-outline" size={28} color={C.textMuted} />
               <Text style={{ fontSize: 13, color: C.textMuted, marginTop: 6 }}>No travel added yet</Text>
+            </View>
+          )}
+        </View>
+
+        {/* ── Team Section ── */}
+        <View style={[styles.section, { backgroundColor: C.surface, borderColor: C.borderLight }]}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+            <SectionHeader icon="people" iconColor="#8E24AA" title="Team" />
+            <TouchableOpacity
+              style={{ flexDirection: 'row', alignItems: 'center', gap: 4, paddingVertical: 4, paddingHorizontal: 8 }}
+              onPress={() => navigation.navigate('AddTeam', { eventId: event.id })}
+            >
+              <Ionicons name="add-circle" size={18} color={C.primary} />
+              <Text style={{ fontSize: 13, fontWeight: '600', color: C.primary }}>Add</Text>
+            </TouchableOpacity>
+          </View>
+          {teamData.count > 0 ? (
+            <>
+              {/* Payment summary bar */}
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 12, paddingHorizontal: 4 }}>
+                <Ionicons name="wallet-outline" size={16} color={C.accent} />
+                <Text style={{ fontSize: 14, fontWeight: '700', color: C.accent }}>
+                  Total: ₹{Number(teamData.totalAmount).toLocaleString('en-IN')}
+                </Text>
+                {teamData.totalPaid > 0 && (
+                  <Text style={{ fontSize: 12, color: '#2D8B5F', marginLeft: 4 }}>
+                    Paid: ₹{Number(teamData.totalPaid).toLocaleString('en-IN')}
+                  </Text>
+                )}
+                {teamData.totalAmount - teamData.totalPaid > 0 && (
+                  <Text style={{ fontSize: 12, color: C.warning, marginLeft: 4 }}>
+                    Due: ₹{Number(teamData.totalAmount - teamData.totalPaid).toLocaleString('en-IN')}
+                  </Text>
+                )}
+              </View>
+              {teamData.members.map((member) => {
+                const role = TEAM_ROLE_MAP[member.teamRole] || { icon: 'person', color: '#999', label: member.teamRole };
+                const pay = PAYMENT_STATUS_MAP[member.paymentStatus] || PAYMENT_STATUS_MAP.pending;
+                const balance = Math.max(0, (member.amount || 0) - (member.amountPaid || 0));
+                return (
+                  <View
+                    key={member.id}
+                    style={{
+                      flexDirection: 'row', alignItems: 'center', paddingVertical: 10, paddingHorizontal: 4,
+                      borderBottomWidth: 1, borderBottomColor: C.borderLight,
+                    }}
+                  >
+                    <View style={{
+                      width: 34, height: 34, borderRadius: 17, justifyContent: 'center', alignItems: 'center',
+                      backgroundColor: role.color + '18',
+                    }}>
+                      <Ionicons name={role.icon} size={16} color={role.color} />
+                    </View>
+                    <View style={{ flex: 1, marginLeft: 10 }}>
+                      <Text style={{ fontSize: 14, fontWeight: '600', color: C.text }}>
+                        {member.memberName || role.label}
+                      </Text>
+                      <Text style={{ fontSize: 12, color: C.textSecondary, marginTop: 1 }}>{role.label}</Text>
+                    </View>
+                    <View style={{ alignItems: 'flex-end', marginRight: 6 }}>
+                      <Text style={{ fontSize: 13, fontWeight: '600', color: C.text }}>
+                        ₹{Number(member.amount || 0).toLocaleString('en-IN')}
+                      </Text>
+                      {balance > 0 && (
+                        <Text style={{ fontSize: 11, color: C.warning }}>
+                          Due: ₹{balance.toLocaleString('en-IN')}
+                        </Text>
+                      )}
+                    </View>
+                    <View style={[styles.statusPill, { backgroundColor: pay.bg, paddingHorizontal: 7, paddingVertical: 3 }]}>
+                      <Ionicons name={pay.icon} size={12} color={pay.color} />
+                      <Text style={{ fontSize: 10, fontWeight: '600', color: pay.color, marginLeft: 3 }}>{pay.label}</Text>
+                    </View>
+                    <TouchableOpacity
+                      onPress={() => navigation.navigate('EditTeam', { teamMemberId: member.id })}
+                      style={{ marginLeft: 4, padding: 4 }}
+                    >
+                      <Ionicons name="create-outline" size={16} color={C.primary} />
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      onPress={() => handleDeleteTeamMember(member)}
+                      style={{ padding: 4 }}
+                    >
+                      <Ionicons name="trash-outline" size={16} color={C.danger} />
+                    </TouchableOpacity>
+                  </View>
+                );
+              })}
+            </>
+          ) : (
+            <View style={{ alignItems: 'center', paddingVertical: 16 }}>
+              <Ionicons name="people-outline" size={28} color={C.textMuted} />
+              <Text style={{ fontSize: 13, color: C.textMuted, marginTop: 6 }}>No team members added yet</Text>
             </View>
           )}
         </View>

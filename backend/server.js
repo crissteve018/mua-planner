@@ -676,6 +676,156 @@ app.delete('/api/travel/:id', async (req, res) => {
 });
 
 // ─────────────────────────────────────────────
+// TEAM MEMBERS API
+// ─────────────────────────────────────────────
+
+// GET /api/team?eventId=...
+app.get('/api/team', async (req, res) => {
+  try {
+    const { eventId } = req.query;
+    let sql = `SELECT t.*, e.clientName AS eventName, e.eventType, e.eventDate
+               FROM team_members t LEFT JOIN events e ON t.eventId = e.id`;
+    const params = [];
+    if (eventId) {
+      sql += ' WHERE t.eventId = ?';
+      params.push(eventId);
+    }
+    sql += ' ORDER BY t.createdAt DESC';
+    const rows = await all(sql, ...params);
+    res.json({ success: true, data: rows });
+  } catch (err) {
+    console.error('Error fetching team members:', err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// GET /api/team/summary/:eventId — Team summary for an event
+app.get('/api/team/summary/:eventId', async (req, res) => {
+  try {
+    const rows = await all(
+      'SELECT * FROM team_members WHERE eventId = ? ORDER BY teamRole ASC, createdAt ASC',
+      req.params.eventId
+    );
+    const totalAmount = rows.reduce((s, r) => s + (r.amount || 0), 0);
+    const totalPaid = rows.reduce((s, r) => s + (r.amountPaid || 0), 0);
+    res.json({
+      success: true,
+      data: { members: rows, totalAmount, totalPaid, count: rows.length },
+    });
+  } catch (err) {
+    console.error('Error fetching team summary:', err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// GET /api/team/:id — Single team member
+app.get('/api/team/:id', async (req, res) => {
+  try {
+    const row = await get(
+      `SELECT t.*, e.clientName AS eventName, e.eventType, e.eventDate
+       FROM team_members t LEFT JOIN events e ON t.eventId = e.id
+       WHERE t.id = ?`,
+      req.params.id
+    );
+    if (!row) return res.status(404).json({ success: false, error: 'Team member not found' });
+    res.json({ success: true, data: row });
+  } catch (err) {
+    console.error('Error fetching team member:', err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// POST /api/team — Create team member
+app.post('/api/team', async (req, res) => {
+  try {
+    const b = req.body;
+    if (!b.eventId || !b.teamRole) {
+      return res.status(400).json({ success: false, error: 'eventId and teamRole are required' });
+    }
+    // Check event exists
+    const ev = await get('SELECT id FROM events WHERE id = ?', b.eventId);
+    if (!ev) return res.status(404).json({ success: false, error: 'Event not found' });
+
+    // Enforce max per role
+    const maxByRole = { hairstylist: 5, saree_drapist: 5, assistant: 1, driver: 1 };
+    const max = maxByRole[b.teamRole] || 5;
+    const existing = await all(
+      'SELECT id FROM team_members WHERE eventId = ? AND teamRole = ?',
+      b.eventId, b.teamRole
+    );
+    if (existing.length >= max) {
+      return res.status(400).json({
+        success: false,
+        error: `Maximum ${max} ${b.teamRole.replace('_', ' ')}(s) allowed per event`,
+      });
+    }
+
+    const id = require('crypto').randomUUID();
+    const now = new Date().toISOString();
+    const paymentStatus = (b.amountPaid || 0) >= (b.amount || 0) && (b.amount || 0) > 0
+      ? 'paid'
+      : (b.amountPaid || 0) > 0 ? 'partial' : 'pending';
+
+    await run(
+      `INSERT INTO team_members (id, eventId, teamRole, memberName, amount, amountPaid, paymentStatus, notes, createdAt, updatedAt)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      id, b.eventId, b.teamRole, b.memberName || '', b.amount || 0, b.amountPaid || 0,
+      paymentStatus, b.notes || '', now, now
+    );
+    const newRecord = await get('SELECT * FROM team_members WHERE id = ?', id);
+    res.status(201).json({ success: true, data: newRecord });
+  } catch (err) {
+    console.error('Error creating team member:', err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// PUT /api/team/:id — Update team member
+app.put('/api/team/:id', async (req, res) => {
+  try {
+    const existing = await get('SELECT * FROM team_members WHERE id = ?', req.params.id);
+    if (!existing) return res.status(404).json({ success: false, error: 'Team member not found' });
+
+    const b = req.body;
+    const amount = b.amount ?? existing.amount;
+    const amountPaid = b.amountPaid ?? existing.amountPaid;
+    const paymentStatus = amountPaid >= amount && amount > 0
+      ? 'paid'
+      : amountPaid > 0 ? 'partial' : 'pending';
+    const now = new Date().toISOString();
+
+    await run(
+      `UPDATE team_members SET
+        teamRole = ?, memberName = ?, amount = ?, amountPaid = ?,
+        paymentStatus = ?, notes = ?, updatedAt = ?
+       WHERE id = ?`,
+      b.teamRole ?? existing.teamRole,
+      b.memberName ?? existing.memberName,
+      amount, amountPaid, paymentStatus,
+      b.notes ?? existing.notes, now, req.params.id
+    );
+    const updated = await get('SELECT * FROM team_members WHERE id = ?', req.params.id);
+    res.json({ success: true, data: updated });
+  } catch (err) {
+    console.error('Error updating team member:', err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// DELETE /api/team/:id — Delete team member
+app.delete('/api/team/:id', async (req, res) => {
+  try {
+    const existing = await get('SELECT * FROM team_members WHERE id = ?', req.params.id);
+    if (!existing) return res.status(404).json({ success: false, error: 'Team member not found' });
+    await run('DELETE FROM team_members WHERE id = ?', req.params.id);
+    res.json({ success: true, message: 'Team member deleted', data: existing });
+  } catch (err) {
+    console.error('Error deleting team member:', err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// ─────────────────────────────────────────────
 // SETTINGS API
 // ─────────────────────────────────────────────
 

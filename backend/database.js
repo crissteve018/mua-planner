@@ -33,6 +33,7 @@ const CAMEL_COLUMNS = [
   'bookedByArtist',
   'expiresAt','reminderNumber','scheduledFor','sentAt',
   'eventStatus','maxLeg',
+  'memberName','teamRole','amount','amountPaid','paymentStatus',
 ];
 const COL_MAP = {};
 for (const c of CAMEL_COLUMNS) COL_MAP[c.toLowerCase()] = c;
@@ -170,6 +171,21 @@ async function initializeDatabase() {
       departureLocation TEXT DEFAULT '',
       arrivalLocation TEXT DEFAULT '',
       bookedByArtist INTEGER DEFAULT 0,
+      createdAt TEXT DEFAULT '',
+      updatedAt TEXT DEFAULT ''
+    )
+  `);
+
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS team_members (
+      id TEXT PRIMARY KEY,
+      eventId TEXT NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+      teamRole TEXT NOT NULL DEFAULT 'assistant',
+      memberName TEXT DEFAULT '',
+      amount REAL DEFAULT 0,
+      amountPaid REAL DEFAULT 0,
+      paymentStatus TEXT DEFAULT 'pending',
+      notes TEXT DEFAULT '',
       createdAt TEXT DEFAULT '',
       updatedAt TEXT DEFAULT ''
     )

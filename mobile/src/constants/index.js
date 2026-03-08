@@ -215,3 +215,26 @@ export const BOOKING_STATUSES = [
   { key: 'booked',           label: 'Booked' },
   { key: 'ticket_received',  label: 'Ticket Received' },
 ];
+
+// ─── Team Constants ──────────────────────────
+
+export const TEAM_ROLES = [
+  { key: 'hairstylist',   label: 'Hairstylist',    icon: 'cut',          color: '#8E24AA', max: 5 },
+  { key: 'saree_drapist', label: 'Saree Drapist',  icon: 'shirt',        color: '#D4883E', max: 5 },
+  { key: 'assistant',     label: 'Assistant',       icon: 'people',       color: '#1565C0', max: 1 },
+  { key: 'driver',        label: 'Driver',          icon: 'car',          color: '#2D8B5F', max: 1 },
+];
+
+export const TEAM_ROLE_MAP = Object.fromEntries(
+  TEAM_ROLES.map(r => [r.key, r])
+);
+
+export const PAYMENT_STATUSES = [
+  { key: 'pending',  label: 'Pending',  color: '#C62828', bg: '#FFEBEE', icon: 'time' },
+  { key: 'partial',  label: 'Partial',  color: '#D4883E', bg: '#FFF3E0', icon: 'remove-circle' },
+  { key: 'paid',     label: 'Paid',     color: '#2D8B5F', bg: '#E8F5EE', icon: 'checkmark-circle' },
+];
+
+export const PAYMENT_STATUS_MAP = Object.fromEntries(
+  PAYMENT_STATUSES.map(s => [s.key, s])
+);
