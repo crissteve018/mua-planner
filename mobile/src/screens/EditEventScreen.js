@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import {
   View,
   Text,
@@ -12,6 +12,7 @@ import {
   Platform,
   Switch,
   Linking,
+  Keyboard,
 } from 'react-native';
 import { Picker } from '@react-native-picker/picker';
 import DateTimePicker from '@react-native-community/datetimepicker';
@@ -66,6 +67,17 @@ export default function EditEventScreen({ route, navigation }) {
   const [showTimePicker, setShowTimePicker] = useState(false);
   const [dateValue, setDateValue] = useState(new Date());
   const [timeValue, setTimeValue] = useState(new Date());
+
+  // Scroll-to-input on keyboard open
+  const scrollViewRef = useRef(null);
+  const handleInputFocus = useCallback((e) => {
+    const nodeHandle = e.nativeEvent.target;
+    setTimeout(() => {
+      scrollViewRef.current?.scrollResponderScrollNativeHandleToKeyboard(
+        nodeHandle, 120, true
+      );
+    }, 300);
+  }, []);
 
   useEffect(() => { fetchEvent(); }, []);
 
@@ -231,12 +243,12 @@ export default function EditEventScreen({ route, navigation }) {
             <View style={styles.miniFormRow}>
               <View style={{ flex: 1 }}>
                 <Text style={[styles.miniLabel, { color: C.textSecondary }]}>{countLabel}</Text>
-                <TextInput style={[styles.miniInput, { backgroundColor: C.surface, borderColor: C.border, color: C.text }]} placeholder="0" placeholderTextColor={C.textMuted} value={form[countField]} onChangeText={(v) => updateField(countField, v)} keyboardType="numeric" />
+                <TextInput style={[styles.miniInput, { backgroundColor: C.surface, borderColor: C.border, color: C.text }]} placeholder="0" placeholderTextColor={C.textMuted} value={form[countField]} onChangeText={(v) => updateField(countField, v)} keyboardType="numeric" onFocus={handleInputFocus} />
               </View>
               <View style={{ width: 12 }} />
               <View style={{ flex: 1 }}>
                 <Text style={[styles.miniLabel, { color: C.textSecondary }]}>{amountLabel}</Text>
-                <TextInput style={[styles.miniInput, { backgroundColor: C.surface, borderColor: C.border, color: C.text }]} placeholder="₹ 0" placeholderTextColor={C.textMuted} value={form[amountField]} onChangeText={(v) => updateField(amountField, v)} keyboardType="numeric" />
+                <TextInput style={[styles.miniInput, { backgroundColor: C.surface, borderColor: C.border, color: C.text }]} placeholder="₹ 0" placeholderTextColor={C.textMuted} value={form[amountField]} onChangeText={(v) => updateField(amountField, v)} keyboardType="numeric" onFocus={handleInputFocus} />
               </View>
             </View>
           </View>
@@ -262,12 +274,12 @@ export default function EditEventScreen({ route, navigation }) {
             <AutocompleteInput value={form[sField]} onChangeText={(v) => updateField(sField, v)} data={statesData} placeholder={statesData.length > 0 ? 'Search state...' : 'Type state name'} colors={AC} />
 
             <Text style={[styles.label, { color: C.textSecondary }]}>City</Text>
-            <TextInput style={[styles.input, { backgroundColor: C.inputBg, borderColor: C.borderLight, color: C.text }]} placeholder="e.g. Chennai" placeholderTextColor={C.textMuted} value={form[ciField]} onChangeText={(v) => updateField(ciField, v)} />
+            <TextInput style={[styles.input, { backgroundColor: C.inputBg, borderColor: C.borderLight, color: C.text }]} placeholder="e.g. Chennai" placeholderTextColor={C.textMuted} value={form[ciField]} onChangeText={(v) => updateField(ciField, v)} onFocus={handleInputFocus} />
           </>
         )}
 
         <Text style={[styles.label, { color: C.textSecondary }]}>Building / Venue Name</Text>
-        <TextInput style={[styles.input, { backgroundColor: C.inputBg, borderColor: C.borderLight, color: C.text }]} placeholder="e.g. The Grand Palace" placeholderTextColor={C.textMuted} value={form[bField]} onChangeText={(v) => updateField(bField, v)} />
+        <TextInput style={[styles.input, { backgroundColor: C.inputBg, borderColor: C.borderLight, color: C.text }]} placeholder="e.g. The Grand Palace" placeholderTextColor={C.textMuted} value={form[bField]} onChangeText={(v) => updateField(bField, v)} onFocus={handleInputFocus} />
 
         {mapsUrl ? (
           <TouchableOpacity style={[styles.mapsLink, { backgroundColor: C.infoLight }]} onPress={() => Linking.openURL(mapsUrl)} activeOpacity={0.7}>
@@ -278,7 +290,7 @@ export default function EditEventScreen({ route, navigation }) {
         ) : null}
 
         <Text style={[styles.label, { color: C.textSecondary }]}>Address</Text>
-        <TextInput style={[styles.input, styles.textArea, { backgroundColor: C.inputBg, borderColor: C.borderLight, color: C.text }]} placeholder="Full address" placeholderTextColor={C.textMuted} value={form[aField]} onChangeText={(v) => updateField(aField, v)} multiline numberOfLines={3} />
+        <TextInput style={[styles.input, styles.textArea, { backgroundColor: C.inputBg, borderColor: C.borderLight, color: C.text }]} placeholder="Full address" placeholderTextColor={C.textMuted} value={form[aField]} onChangeText={(v) => updateField(aField, v)} multiline numberOfLines={3} onFocus={handleInputFocus} />
       </>
     );
   };
@@ -292,20 +304,20 @@ export default function EditEventScreen({ route, navigation }) {
   }
 
   return (
-    <KeyboardAvoidingView style={[styles.container, { backgroundColor: C.background }]} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
-      <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled" nestedScrollEnabled>
+    <KeyboardAvoidingView style={[styles.container, { backgroundColor: C.background }]} behavior={Platform.OS === 'ios' ? 'padding' : 'height'} keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}>
+      <ScrollView ref={scrollViewRef} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled" nestedScrollEnabled>
 
         {/* ── Client Info ── */}
         <View style={[styles.section, { backgroundColor: C.surface, borderColor: C.borderLight }]}>
           <SectionHeader icon="person" iconColor={C.sectionClient} title="Client Information" />
           <Text style={[styles.label, { color: C.textSecondary }]}>Client Name *</Text>
-          <TextInput style={[styles.input, { backgroundColor: C.inputBg, borderColor: C.borderLight, color: C.text }]} value={form.clientName} onChangeText={(v) => updateField('clientName', v)} placeholder="Client name" placeholderTextColor={C.textMuted} />
+          <TextInput style={[styles.input, { backgroundColor: C.inputBg, borderColor: C.borderLight, color: C.text }]} value={form.clientName} onChangeText={(v) => updateField('clientName', v)} placeholder="Client name" placeholderTextColor={C.textMuted} onFocus={handleInputFocus} />
           <Text style={[styles.label, { color: C.textSecondary }]}>Phone Number</Text>
-          <TextInput style={[styles.input, { backgroundColor: C.inputBg, borderColor: C.borderLight, color: C.text }]} value={form.clientPhone} onChangeText={(v) => updateField('clientPhone', v)} placeholder="Phone" placeholderTextColor={C.textMuted} keyboardType="phone-pad" />
+          <TextInput style={[styles.input, { backgroundColor: C.inputBg, borderColor: C.borderLight, color: C.text }]} value={form.clientPhone} onChangeText={(v) => updateField('clientPhone', v)} placeholder="Phone" placeholderTextColor={C.textMuted} keyboardType="phone-pad" onFocus={handleInputFocus} />
           <Text style={[styles.label, { color: C.textSecondary }]}>Alternative Number</Text>
-          <TextInput style={[styles.input, { backgroundColor: C.inputBg, borderColor: C.borderLight, color: C.text }]} value={form.alternativePhone} onChangeText={(v) => updateField('alternativePhone', v)} placeholder="Optional" placeholderTextColor={C.textMuted} keyboardType="phone-pad" />
+          <TextInput style={[styles.input, { backgroundColor: C.inputBg, borderColor: C.borderLight, color: C.text }]} value={form.alternativePhone} onChangeText={(v) => updateField('alternativePhone', v)} placeholder="Optional" placeholderTextColor={C.textMuted} keyboardType="phone-pad" onFocus={handleInputFocus} />
           <Text style={[styles.label, { color: C.textSecondary }]}>Email Address</Text>
-          <TextInput style={[styles.input, { backgroundColor: C.inputBg, borderColor: C.borderLight, color: C.text }]} value={form.emailAddress} onChangeText={(v) => updateField('emailAddress', v)} placeholder="email@example.com" placeholderTextColor={C.textMuted} keyboardType="email-address" autoCapitalize="none" />
+          <TextInput style={[styles.input, { backgroundColor: C.inputBg, borderColor: C.borderLight, color: C.text }]} value={form.emailAddress} onChangeText={(v) => updateField('emailAddress', v)} placeholder="email@example.com" placeholderTextColor={C.textMuted} keyboardType="email-address" autoCapitalize="none" onFocus={handleInputFocus} />
         </View>
 
         {/* ── Event Details ── */}
@@ -314,7 +326,7 @@ export default function EditEventScreen({ route, navigation }) {
           <Text style={[styles.label, { color: C.textSecondary }]}>Event Type *</Text>
           <TouchableOpacity
             style={[styles.dateBtn, showEventTypePicker && styles.dateBtnActive, { backgroundColor: C.inputBg, borderColor: C.borderLight }]}
-            onPress={() => setShowEventTypePicker(!showEventTypePicker)}
+            onPress={() => { Keyboard.dismiss(); setShowEventTypePicker(!showEventTypePicker); }}
           >
             <Ionicons name="ribbon" size={20} color={showEventTypePicker ? C.primary : C.accent} />
             <Text style={[styles.eventTypeBtnText, { color: C.text }]}>{form.eventType}</Text>
@@ -339,7 +351,7 @@ export default function EditEventScreen({ route, navigation }) {
           )}
 
           <Text style={[styles.label, { color: C.textSecondary }]}>Date of Event</Text>
-          <TouchableOpacity style={[styles.dateBtn, showDatePicker && styles.dateBtnActive, { backgroundColor: C.inputBg, borderColor: C.borderLight }]} onPress={() => setShowDatePicker(!showDatePicker)}>
+          <TouchableOpacity style={[styles.dateBtn, showDatePicker && styles.dateBtnActive, { backgroundColor: C.inputBg, borderColor: C.borderLight }]} onPress={() => { Keyboard.dismiss(); setShowDatePicker(!showDatePicker); }}>
             <Ionicons name="calendar" size={20} color={showDatePicker ? C.primary : C.accent} />
             <Text style={[styles.dateBtnText, { color: C.text }, !form.eventDate && { color: C.textMuted }]}>{form.eventDate ? formatDisplayDate(form.eventDate) : 'Select date'}</Text>
             <Ionicons name={showDatePicker ? 'chevron-up' : 'chevron-down'} size={16} color={C.textMuted} />
@@ -356,7 +368,7 @@ export default function EditEventScreen({ route, navigation }) {
           )}
 
           <Text style={[styles.label, { color: C.textSecondary }]}>Makeup Start Time</Text>
-          <TouchableOpacity style={[styles.dateBtn, showTimePicker && styles.dateBtnActive, { backgroundColor: C.inputBg, borderColor: C.borderLight }]} onPress={() => setShowTimePicker(!showTimePicker)}>
+          <TouchableOpacity style={[styles.dateBtn, showTimePicker && styles.dateBtnActive, { backgroundColor: C.inputBg, borderColor: C.borderLight }]} onPress={() => { Keyboard.dismiss(); setShowTimePicker(!showTimePicker); }}>
             <Ionicons name="time" size={20} color={showTimePicker ? C.primary : C.accent} />
             <Text style={[styles.dateBtnText, { color: C.text }, !form.eventTime && { color: C.textMuted }]}>{form.eventTime || 'Select time'}</Text>
             <Ionicons name={showTimePicker ? 'chevron-up' : 'chevron-down'} size={16} color={C.textMuted} />
@@ -397,11 +409,11 @@ export default function EditEventScreen({ route, navigation }) {
         <View style={[styles.section, { backgroundColor: C.surface, borderColor: C.borderLight }]}>
           <SectionHeader icon="color-palette" iconColor={C.sectionPricing} title="Makeup & Pricing" />
           <Text style={[styles.label, { color: C.textSecondary }]}>Type of Makeup</Text>
-          <TextInput style={[styles.input, { backgroundColor: C.inputBg, borderColor: C.borderLight, color: C.text }]} value={form.typeOfMakeup} onChangeText={(v) => updateField('typeOfMakeup', v)} placeholder="e.g. HD Bridal" placeholderTextColor={C.textMuted} />
+          <TextInput style={[styles.input, { backgroundColor: C.inputBg, borderColor: C.borderLight, color: C.text }]} value={form.typeOfMakeup} onChangeText={(v) => updateField('typeOfMakeup', v)} placeholder="e.g. HD Bridal" placeholderTextColor={C.textMuted} onFocus={handleInputFocus} />
           <Text style={[styles.label, { color: C.textSecondary }]}>Package Amount (₹)</Text>
-          <TextInput style={[styles.input, { backgroundColor: C.inputBg, borderColor: C.borderLight, color: C.text }]} value={form.packageAmount} onChangeText={(v) => updateField('packageAmount', v)} placeholder="Amount" placeholderTextColor={C.textMuted} keyboardType="numeric" />
+          <TextInput style={[styles.input, { backgroundColor: C.inputBg, borderColor: C.borderLight, color: C.text }]} value={form.packageAmount} onChangeText={(v) => updateField('packageAmount', v)} placeholder="Amount" placeholderTextColor={C.textMuted} keyboardType="numeric" onFocus={handleInputFocus} />
           <Text style={[styles.label, { color: C.textSecondary }]}>Advance Paid (₹)</Text>
-          <TextInput style={[styles.input, { backgroundColor: C.inputBg, borderColor: C.borderLight, color: C.text }]} value={form.advancePaid} onChangeText={(v) => updateField('advancePaid', v)} placeholder="Advance" placeholderTextColor={C.textMuted} keyboardType="numeric" />
+          <TextInput style={[styles.input, { backgroundColor: C.inputBg, borderColor: C.borderLight, color: C.text }]} value={form.advancePaid} onChangeText={(v) => updateField('advancePaid', v)} placeholder="Advance" placeholderTextColor={C.textMuted} keyboardType="numeric" onFocus={handleInputFocus} />
         </View>
 
         {/* ── Extra Services ── */}
@@ -441,7 +453,7 @@ export default function EditEventScreen({ route, navigation }) {
         {/* ── Notes ── */}
         <View style={[styles.section, { backgroundColor: C.surface, borderColor: C.borderLight }]}>
           <SectionHeader icon="document-text" iconColor={C.sectionNotes} title="Notes" />
-          <TextInput style={[styles.input, styles.textArea, { backgroundColor: C.inputBg, borderColor: C.borderLight, color: C.text }]} placeholder="Any additional notes..." placeholderTextColor={C.textMuted} value={form.notes} onChangeText={(v) => updateField('notes', v)} multiline numberOfLines={3} />
+          <TextInput style={[styles.input, styles.textArea, { backgroundColor: C.inputBg, borderColor: C.borderLight, color: C.text }]} placeholder="Any additional notes..." placeholderTextColor={C.textMuted} value={form.notes} onChangeText={(v) => updateField('notes', v)} multiline numberOfLines={3} onFocus={handleInputFocus} />
         </View>
 
         {/* ── Save ── */}

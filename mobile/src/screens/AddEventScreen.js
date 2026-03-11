@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useRef, useCallback } from 'react';
 import {
   View,
   Text,
@@ -12,6 +12,7 @@ import {
   Platform,
   Switch,
   Linking,
+  Keyboard,
 } from 'react-native';
 import { Picker } from '@react-native-picker/picker';
 import DateTimePicker from '@react-native-community/datetimepicker';
@@ -95,6 +96,17 @@ export default function AddEventScreen({ navigation, route }) {
   const [showTimePicker, setShowTimePicker] = useState(false);
   const [dateValue, setDateValue] = useState(new Date());
   const [timeValue, setTimeValue] = useState(new Date());
+
+  // Scroll-to-input on keyboard open
+  const scrollViewRef = useRef(null);
+  const handleInputFocus = useCallback((e) => {
+    const nodeHandle = e.nativeEvent.target;
+    setTimeout(() => {
+      scrollViewRef.current?.scrollResponderScrollNativeHandleToKeyboard(
+        nodeHandle, 120, true
+      );
+    }, 300);
+  }, []);
 
   const updateField = (field, value) => {
     setForm((prev) => ({ ...prev, [field]: value }));
@@ -250,6 +262,7 @@ export default function AddEventScreen({ navigation, route }) {
                   value={form[countField]}
                   onChangeText={(v) => updateField(countField, v)}
                   keyboardType="numeric"
+                  onFocus={handleInputFocus}
                 />
               </View>
               <View style={{ width: 12 }} />
@@ -262,6 +275,7 @@ export default function AddEventScreen({ navigation, route }) {
                   value={form[amountField]}
                   onChangeText={(v) => updateField(amountField, v)}
                   keyboardType="numeric"
+                  onFocus={handleInputFocus}
                 />
               </View>
             </View>
@@ -311,6 +325,7 @@ export default function AddEventScreen({ navigation, route }) {
               placeholderTextColor={C.textMuted}
               value={form[ciField]}
               onChangeText={(v) => updateField(ciField, v)}
+              onFocus={handleInputFocus}
             />
           </>
         )}
@@ -322,6 +337,7 @@ export default function AddEventScreen({ navigation, route }) {
           placeholderTextColor={C.textMuted}
           value={form[bField]}
           onChangeText={(v) => updateField(bField, v)}
+          onFocus={handleInputFocus}
         />
 
         {/* Maps Direction Link */}
@@ -346,6 +362,7 @@ export default function AddEventScreen({ navigation, route }) {
           onChangeText={(v) => updateField(aField, v)}
           multiline
           numberOfLines={3}
+          onFocus={handleInputFocus}
         />
       </>
     );
@@ -355,6 +372,7 @@ export default function AddEventScreen({ navigation, route }) {
     <KeyboardAvoidingView
       style={[styles.container, { backgroundColor: C.background }]}
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
     >
       {/* Close button header */}
       <View style={styles.closeHeader}>
@@ -364,6 +382,7 @@ export default function AddEventScreen({ navigation, route }) {
       </View>
 
       <ScrollView
+        ref={scrollViewRef}
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
@@ -380,6 +399,7 @@ export default function AddEventScreen({ navigation, route }) {
             placeholderTextColor={C.textMuted}
             value={form.clientName}
             onChangeText={(v) => updateField('clientName', v)}
+            onFocus={handleInputFocus}
           />
 
           <Text style={[styles.label, { color: C.textSecondary }]}>Phone Number *</Text>
@@ -390,6 +410,7 @@ export default function AddEventScreen({ navigation, route }) {
             value={form.clientPhone}
             onChangeText={(v) => updateField('clientPhone', v)}
             keyboardType="phone-pad"
+            onFocus={handleInputFocus}
           />
 
           <Text style={[styles.label, { color: C.textSecondary }]}>Alternative Number</Text>
@@ -398,6 +419,7 @@ export default function AddEventScreen({ navigation, route }) {
             placeholder="Optional"
             placeholderTextColor={C.textMuted}
             value={form.alternativePhone}
+            onFocus={handleInputFocus}
             onChangeText={(v) => updateField('alternativePhone', v)}
             keyboardType="phone-pad"
           />
@@ -409,8 +431,7 @@ export default function AddEventScreen({ navigation, route }) {
             placeholderTextColor={C.textMuted}
             value={form.emailAddress}
             onChangeText={(v) => updateField('emailAddress', v)}
-            keyboardType="email-address"
-            autoCapitalize="none"
+            keyboardType="email-address"            onFocus={handleInputFocus}            autoCapitalize="none"
           />
         </View>
 
@@ -421,7 +442,7 @@ export default function AddEventScreen({ navigation, route }) {
           <Text style={[styles.label, { color: C.textSecondary }]}>Event Type *</Text>
           <TouchableOpacity
             style={[styles.dateBtn, showEventTypePicker && styles.dateBtnActive, { backgroundColor: C.inputBg, borderColor: C.borderLight }]}
-            onPress={() => setShowEventTypePicker(!showEventTypePicker)}
+            onPress={() => { Keyboard.dismiss(); setShowEventTypePicker(!showEventTypePicker); }}
           >
             <Ionicons name="ribbon" size={20} color={showEventTypePicker ? C.primary : C.accent} />
             <Text style={[styles.eventTypeBtnText, { color: C.text }]}>{form.eventType}</Text>
@@ -453,7 +474,7 @@ export default function AddEventScreen({ navigation, route }) {
           <Text style={[styles.label, { color: C.textSecondary }]}>Date of Event *</Text>
           <TouchableOpacity
             style={[styles.dateBtn, showDatePicker && styles.dateBtnActive, { backgroundColor: C.inputBg, borderColor: C.borderLight }]}
-            onPress={() => setShowDatePicker(!showDatePicker)}
+            onPress={() => { Keyboard.dismiss(); setShowDatePicker(!showDatePicker); }}
           >
             <Ionicons name="calendar" size={20} color={showDatePicker ? C.primary : C.accent} />
             <Text style={[styles.dateBtnText, { color: C.text }, !form.eventDate && { color: C.textMuted }]}>
@@ -487,7 +508,7 @@ export default function AddEventScreen({ navigation, route }) {
           <Text style={[styles.label, { color: C.textSecondary }]}>Makeup Start Time</Text>
           <TouchableOpacity
             style={[styles.dateBtn, showTimePicker && styles.dateBtnActive, { backgroundColor: C.inputBg, borderColor: C.borderLight }]}
-            onPress={() => setShowTimePicker(!showTimePicker)}
+            onPress={() => { Keyboard.dismiss(); setShowTimePicker(!showTimePicker); }}
           >
             <Ionicons name="time" size={20} color={showTimePicker ? C.primary : C.accent} />
             <Text style={[styles.dateBtnText, { color: C.text }, !form.eventTime && { color: C.textMuted }]}>
@@ -556,6 +577,7 @@ export default function AddEventScreen({ navigation, route }) {
             placeholderTextColor={C.textMuted}
             value={form.typeOfMakeup}
             onChangeText={(v) => updateField('typeOfMakeup', v)}
+            onFocus={handleInputFocus}
           />
 
           <Text style={[styles.label, { color: C.textSecondary }]}>Package Amount (₹)</Text>
@@ -566,6 +588,7 @@ export default function AddEventScreen({ navigation, route }) {
             value={form.packageAmount}
             onChangeText={(v) => updateField('packageAmount', v)}
             keyboardType="numeric"
+            onFocus={handleInputFocus}
           />
 
           <Text style={[styles.label, { color: C.textSecondary }]}>Advance Paid (₹)</Text>
@@ -576,6 +599,7 @@ export default function AddEventScreen({ navigation, route }) {
             value={form.advancePaid}
             onChangeText={(v) => updateField('advancePaid', v)}
             keyboardType="numeric"
+            onFocus={handleInputFocus}
           />
         </View>
 
@@ -627,6 +651,7 @@ export default function AddEventScreen({ navigation, route }) {
             onChangeText={(v) => updateField('notes', v)}
             multiline
             numberOfLines={3}
+            onFocus={handleInputFocus}
           />
         </View>
 
