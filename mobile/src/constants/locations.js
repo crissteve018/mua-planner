@@ -178,3 +178,128 @@ export const CITIES_BY_COUNTRY = {
   'Bahrain': ['Manama'],
   'Oman': ['Muscat', 'Salalah'],
 };
+
+// ─────────────────────────────────────────────
+// Railway stations data for train autocomplete
+// ─────────────────────────────────────────────
+
+export const STATIONS_BY_CITY = {
+  // Tamil Nadu
+  'Chennai': ['Chennai Central (MAS)', 'Chennai Egmore (MS)', 'Tambaram (TBM)', 'Perambur (PER)', 'Mambalam (MBM)', 'Guindy (GY)', 'Chromepet (CMP)', 'Avadi (AVD)', 'Tiruvallur (TRL)', 'Perungalathur (PGLT)'],
+  'Coimbatore': ['Coimbatore Junction (CBE)', 'Coimbatore North (CBF)', 'Podanur (PTJ)'],
+  'Madurai': ['Madurai Junction (MDU)'],
+  'Salem': ['Salem Junction (SA)'],
+  'Tiruchirappalli (Trichy)': ['Tiruchirappalli Junction (TPJ)', 'Srirangam (SRR)'],
+  'Tirupati': ['Tirupati (TPTY)', 'Tirumala (TMLP)'],
+  'Ernakulam (Kochi)': ['Ernakulam Junction (ERS)', 'Ernakulam Town (ERN)'],
+  'Kochi': ['Ernakulam Junction (ERS)', 'Ernakulam Town (ERN)'],
+
+  // Karnataka
+  'Bangalore (Bengaluru)': ['KSR Bengaluru (SBC)', 'Yesvantpur Junction (YPR)', 'Bengaluru Cantonment (BNC)', 'Whitefield (WFD)', 'Krishnarajapuram (KJM)', 'Banaswadi (BAND)'],
+  'Mysore (Mysuru)': ['Mysuru Junction (MYS)'],
+  'Hubli': ['Hubballi Junction (UBL)'],
+  'Mangalore': ['Mangaluru Central (MAQ)', 'Mangaluru Junction (MAJN)'],
+
+  // Andhra Pradesh / Telangana
+  'Hyderabad': ['Secunderabad Junction (SC)', 'Hyderabad Deccan (HYB)', 'Kacheguda (KCG)', 'Lingampally (LPI)', 'Begumpet (BMT)'],
+  'Vijayawada': ['Vijayawada Junction (BZA)'],
+  'Visakhapatnam': ['Visakhapatnam (VSKP)'],
+  'Warangal': ['Warangal (WL)'],
+
+  // Kerala
+  'Thiruvananthapuram': ['Thiruvananthapuram Central (TVC)'],
+  'Kozhikode (Calicut)': ['Kozhikode (CLT)'],
+
+  // Maharashtra
+  'Mumbai': ['Chhatrapati Shivaji Terminus (CSMT)', 'Mumbai Central (MMCT)', 'Dadar (DR)', 'Lokmanya Tilak Terminus (LTT)', 'Bandra Terminus (BDTS)', 'Andheri (ADH)', 'Borivali (BVI)', 'Thane (TNA)', 'Panvel (PNVL)', 'Kalyan Junction (KYN)'],
+  'Pune': ['Pune Junction (PUNE)', 'Shivajinagar (SVJ)', 'Khadki (KK)', 'Hadapsar (HDP)'],
+  'Nagpur': ['Nagpur Junction (NGP)'],
+  'Nashik': ['Nashik Road (NK)'],
+  'Navi Mumbai': ['Panvel (PNVL)', 'Vashi (VASI)'],
+  'Thane': ['Thane (TNA)', 'Kalyan Junction (KYN)'],
+  'Kolhapur': ['Kolhapur (KOP)'],
+  'Aurangabad': ['Aurangabad (AWB)'],
+
+  // Delhi / NCR
+  'Delhi': ['New Delhi (NDLS)', 'Old Delhi (DLI)', 'Hazrat Nizamuddin (NZM)', 'Anand Vihar Terminal (ANVT)', 'Delhi Sarai Rohilla (DEE)', 'Delhi Cantt (DEC)'],
+  'New Delhi': ['New Delhi (NDLS)', 'Old Delhi (DLI)', 'Hazrat Nizamuddin (NZM)', 'Anand Vihar Terminal (ANVT)', 'Delhi Sarai Rohilla (DEE)'],
+  'Gurgaon (Gurugram)': ['Gurugram (GGN)'],
+  'Ghaziabad': ['Ghaziabad (GZB)'],
+  'Noida': ['Dadri (DDNR)', 'Ghaziabad (GZB)'],
+  'Greater Noida': ['Dadri (DDNR)'],
+  'Faridabad': ['Faridabad (FDB)'],
+
+  // West Bengal
+  'Kolkata': ['Howrah Junction (HWH)', 'Sealdah (SDAH)', 'Kolkata (KOAA)', 'Santragachi Junction (SRC)', 'Shalimar (SHM)', 'Dumdum (DDJ)', 'Ballygunge Junction (BLN)'],
+  'Howrah': ['Howrah Junction (HWH)', 'Santragachi Junction (SRC)'],
+  'Siliguri': ['New Jalpaiguri (NJP)', 'Siliguri Junction (SGUJ)'],
+  'Durgapur': ['Durgapur (DGR)'],
+
+  // Uttar Pradesh
+  'Lucknow': ['Lucknow (LKO)', 'Lucknow Junction (LJN)', 'Lucknow Charbagh (LKO)'],
+  'Kanpur': ['Kanpur Central (CNB)'],
+  'Varanasi': ['Varanasi Junction (BSB)', 'Varanasi City (BCY)', 'Manduadih (MUV)'],
+  'Agra': ['Agra Cantt (AGC)', 'Agra Fort (AF)', 'Raja Ki Mandi (RKM)'],
+  'Allahabad (Prayagraj)': ['Prayagraj Junction (PYGS)', 'Prayagraj Rambagh (PYRG)'],
+  'Gorakhpur': ['Gorakhpur Junction (GKP)'],
+  'Meerut': ['Meerut City (MTC)'],
+  'Bareilly': ['Bareilly Junction (BE)'],
+  'Gaya': ['Gaya Junction (GAYA)'],
+
+  // Rajasthan
+  'Jaipur': ['Jaipur Junction (JP)', 'Durgapura (DPA)', 'Gandhinagar Jaipur (GADJ)'],
+  'Jodhpur': ['Jodhpur Junction (JU)'],
+  'Udaipur': ['Udaipur City (UDZ)'],
+  'Ajmer': ['Ajmer Junction (AII)'],
+  'Kota': ['Kota Junction (KOTA)'],
+
+  // Gujarat
+  'Ahmedabad': ['Ahmedabad Junction (ADI)', 'Sabarmati (SBI)', 'Maninagar (MAN)'],
+  'Surat': ['Surat (ST)', 'Udhna Junction (UDN)'],
+  'Vadodara': ['Vadodara Junction (BRC)'],
+  'Rajkot': ['Rajkot Junction (RJT)'],
+  'Gandhinagar': ['Gandhinagar Capital (GNC)'],
+
+  // Madhya Pradesh
+  'Bhopal': ['Bhopal Junction (BPL)', 'Habibganj (HBJ)'],
+  'Indore': ['Indore Junction (INDB)'],
+  'Jabalpur': ['Jabalpur (JBP)'],
+  'Gwalior': ['Gwalior Junction (GWL)'],
+  'Ujjain': ['Ujjain Junction (UJN)'],
+
+  // Bihar / Jharkhand
+  'Patna': ['Patna Junction (PNBE)', 'Rajendra Nagar Terminal (RJPB)', 'Danapur (DNR)'],
+  'Ranchi': ['Ranchi (RNC)', 'Hatia (HTE)'],
+  'Jamshedpur': ['Tatanagar Junction (TATA)'],
+
+  // Odisha / Chhattisgarh
+  'Bhubaneswar': ['Bhubaneswar (BBS)'],
+  'Cuttack': ['Cuttack Junction (CTC)'],
+  'Raipur': ['Raipur Junction (R)'],
+
+  // Punjab / Haryana / Chandigarh
+  'Chandigarh': ['Chandigarh (CDG)'],
+  'Amritsar': ['Amritsar Junction (ASR)'],
+  'Ludhiana': ['Ludhiana Junction (LDH)'],
+  'Jalandhar': ['Jalandhar City (JUC)', 'Jalandhar Cantt (JRC)'],
+
+  // Northeast
+  'Guwahati': ['Guwahati (GHY)', 'Kamakhya (KYQ)'],
+  'Dibrugarh': ['Dibrugarh (DBRG)', 'Dibrugarh Town (DBRT)'],
+  'Agartala': ['Agartala (AGTL)'],
+  'Imphal': ['Jiribam (JRB)'],
+
+  // Himachal / Uttarakhand / J&K
+  'Shimla': ['Shimla (SML)', 'Kalka (KLK)'],
+  'Dehradun': ['Dehradun (DDN)', 'Haridwar Junction (HW)'],
+  'Jammu': ['Jammu Tawi (JAT)'],
+  'Srinagar': ['Srinagar (SINA)'],
+  'Dharamshala': ['Pathankot (PTK)'],
+
+  // Goa
+  'Goa (Panaji)': ['Madgaon Junction (MAO)', 'Thivim (THVM)', 'Vasco Da Gama (VSG)', 'Karmali (KRMI)'],
+  'Panaji': ['Karmali (KRMI)', 'Thivim (THVM)'],
+
+  // Pondicherry
+  'Pondicherry (Puducherry)': ['Puducherry (PDY)'],
+};

@@ -122,6 +122,7 @@ export default function AutocompleteInput({
 const styles = StyleSheet.create({
   wrapper: {
     zIndex: 10,
+    position: 'relative',
   },
   inputRow: {
     flexDirection: 'row',
@@ -137,6 +138,10 @@ const styles = StyleSheet.create({
     padding: 0,
   },
   dropdown: {
+    position: 'absolute',
+    top: '100%',
+    left: 0,
+    right: 0,
     marginTop: 4,
     borderRadius: 12,
     borderWidth: 1,
@@ -146,6 +151,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.12,
     shadowRadius: 12,
     elevation: 8,
+    zIndex: 999,
   },
   dropdownItem: {
     paddingVertical: 13,

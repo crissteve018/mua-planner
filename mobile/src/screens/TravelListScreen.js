@@ -78,7 +78,7 @@ export default function TravelListScreen({ navigation }) {
         <View style={styles.headerActions}>
           <TouchableOpacity
             style={styles.headerBtn}
-            onPress={() => setShowSearch(v => !v)}
+            onPress={() => setShowSearch(v => { if (v) setSearchText(''); return !v; })}
             onLongPress={() => showTooltip('Search')}
           >
             <Ionicons

@@ -11,6 +11,7 @@ import {
   Platform,
   ActivityIndicator,
   Image,
+  Linking,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import DateTimePicker from '@react-native-community/datetimepicker';
@@ -19,7 +20,7 @@ import { useFocusEffect } from '@react-navigation/native';
 import { getTravelById, updateTravel } from '../api/travel';
 import { COLORS, TRAVEL_MODES } from '../constants';
 import { useTheme } from '../context/SettingsContext';
-import { CITIES_BY_COUNTRY } from '../constants/locations';
+import { CITIES_BY_COUNTRY, STATIONS_BY_CITY } from '../constants/locations';
 import AutocompleteInput from '../components/AutocompleteInput';
 
 /* ── helpers ─────────────────────────────────── */
@@ -158,7 +159,14 @@ export default function EditTravelScreen({ navigation, route }) {
   const handlePickTicket = async () => {
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (status !== 'granted') {
-      Alert.alert('Permission needed', 'Please allow access to files to attach tickets.');
+      Alert.alert(
+        'Permission Required',
+        'MUA Planner needs access to your photo library to attach tickets. Please grant permission in Settings.',
+        [
+          { text: 'Later', style: 'cancel' },
+          { text: 'Open Settings', onPress: () => Linking.openSettings() },
+        ]
+      );
       return;
     }
     const result = await ImagePicker.launchImageLibraryAsync({
@@ -172,7 +180,7 @@ export default function EditTravelScreen({ navigation, route }) {
   };
 
   /* ── reusable sub-components ────────────────── */
-  const TravellerStepper = () => (
+  const TravellerField = () => (
     <>
       <Text style={[styles.label, { color: C.textSecondary }]}>Number of Travellers</Text>
       <View style={styles.stepperRow}>
@@ -371,14 +379,14 @@ export default function EditTravelScreen({ navigation, route }) {
                 <TextInput style={[styles.input, { backgroundColor: C.inputBg, borderColor: C.borderLight, color: C.text }]} placeholder="e.g. Rajdhani" placeholderTextColor={C.textMuted} value={form.trainName} onChangeText={v => set('trainName', v)} onFocus={closeDatePicker} />
               </View>
             </View>
-            <View style={styles.row}>
-              <View style={styles.halfField}>
+            <View style={[styles.row, { zIndex: 15 }]}>
+              <View style={[styles.halfField, { zIndex: 16 }]}>
                 <Text style={[styles.label, { color: C.textSecondary }]}>From (Station)</Text>
-                <TextInput style={[styles.input, { backgroundColor: C.inputBg, borderColor: C.borderLight, color: C.text }]} placeholder="Departure station" placeholderTextColor={C.textMuted} value={form.departureStation} onChangeText={v => set('departureStation', v)} onFocus={closeDatePicker} />
+                <AutocompleteInput value={form.departureStation} onChangeText={v => set('departureStation', v)} data={STATIONS_BY_CITY[form.departureCity] || []} placeholder="Departure station" colors={acColors} onInputFocus={closeDatePicker} />
               </View>
-              <View style={styles.halfField}>
+              <View style={[styles.halfField, { zIndex: 15 }]}>
                 <Text style={[styles.label, { color: C.textSecondary }]}>To (Station)</Text>
-                <TextInput style={[styles.input, { backgroundColor: C.inputBg, borderColor: C.borderLight, color: C.text }]} placeholder="Arrival station" placeholderTextColor={C.textMuted} value={form.arrivalStation} onChangeText={v => set('arrivalStation', v)} onFocus={closeDatePicker} />
+                <AutocompleteInput value={form.arrivalStation} onChangeText={v => set('arrivalStation', v)} data={STATIONS_BY_CITY[form.arrivalCity] || []} placeholder="Arrival station" colors={acColors} onInputFocus={closeDatePicker} />
               </View>
             </View>
             <TravellerField />
