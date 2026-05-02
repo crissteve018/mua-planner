@@ -1264,13 +1264,40 @@ app.post('/api/auth/resend', async (req, res) => {
 app.get('/api/auth/me/:email', async (req, res) => {
   try {
     const cleanEmail = req.params.email.trim().toLowerCase();
-    const user = await get('SELECT id, email, name, verified, createdAt FROM users WHERE email = ? AND verified = 1', cleanEmail);
+    const user = await get('SELECT id, email, name, profileImage, verified, createdAt FROM users WHERE email = ? AND verified = 1', cleanEmail);
     if (!user) {
       return res.status(404).json({ success: false, error: 'User not found' });
     }
     res.json({ success: true, data: user });
   } catch (err) {
     console.error('Error fetching user:', err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// PUT /api/auth/profile — Update user profile (name, profileImage)
+app.put('/api/auth/profile', requireUserId, async (req, res) => {
+  try {
+    const { name, profileImage } = req.body;
+    const now = new Date().toISOString();
+    
+    const existing = await get('SELECT * FROM users WHERE id = ?', req.userId);
+    if (!existing) {
+      return res.status(404).json({ success: false, error: 'User not found' });
+    }
+
+    await run(
+      `UPDATE users SET name = ?, profileImage = ?, updatedAt = ? WHERE id = ?`,
+      name ?? existing.name,
+      profileImage ?? existing.profileImage,
+      now,
+      req.userId
+    );
+
+    const updated = await get('SELECT id, email, name, profileImage, verified, createdAt FROM users WHERE id = ?', req.userId);
+    res.json({ success: true, data: updated });
+  } catch (err) {
+    console.error('Error updating profile:', err);
     res.status(500).json({ success: false, error: err.message });
   }
 });

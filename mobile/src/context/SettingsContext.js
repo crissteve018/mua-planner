@@ -1,6 +1,7 @@
 import React, { createContext, useState, useEffect, useCallback, useContext, useMemo } from 'react';
 import { useColorScheme } from 'react-native';
 import { getSettings, updateSettings as apiUpdateSettings } from '../api/settings';
+import { useAuth } from './AuthContext';
 import { COLORS, COLORS_DARK } from '../constants';
 
 const SettingsContext = createContext();
@@ -18,12 +19,25 @@ const DEFAULT_SETTINGS = {
 };
 
 export function SettingsProvider({ children }) {
+  const { user, loading: authLoading } = useAuth();
   const [settings, setSettings] = useState(DEFAULT_SETTINGS);
   const [loading, setLoading] = useState(true);
   const systemScheme = useColorScheme(); // 'light' | 'dark' | null
 
+  // Only load settings after user is authenticated
   useEffect(() => {
     let mounted = true;
+    
+    // Wait for auth to finish loading and user to be available
+    if (authLoading) return;
+    
+    if (!user) {
+      // No user logged in, use defaults
+      setSettings(DEFAULT_SETTINGS);
+      setLoading(false);
+      return;
+    }
+
     (async () => {
       try {
         const res = await getSettings();
@@ -37,7 +51,7 @@ export function SettingsProvider({ children }) {
       }
     })();
     return () => { mounted = false; };
-  }, []);
+  }, [user, authLoading]);
 
   /* ── compute effective dark mode ───────────── */
   const isDark = useMemo(() => {

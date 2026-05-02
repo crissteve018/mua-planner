@@ -29,3 +29,8 @@ export const getProfile = async (email) => {
   const response = await api.get(`/api/auth/me/${encodeURIComponent(email)}`);
   return response.data;
 };
+
+export const updateProfile = async (data) => {
+  const response = await api.put('/api/auth/profile', data);
+  return response.data;
+};

@@ -10,7 +10,7 @@ const pool = new Pool({
 
 // ── Column-name mapping (PG lowercase → camelCase) ──
 const CAMEL_COLUMNS = [
-  'userId',
+  'userId', 'profileImage',
   'clientName','clientPhone','alternativePhone','emailAddress',
   'eventType','buildingName','locationDirection',
   'workLocationDifferent','workCountry','workState','workCity',
@@ -266,11 +266,17 @@ async function initializeDatabase() {
       id TEXT PRIMARY KEY,
       email TEXT NOT NULL UNIQUE,
       name TEXT DEFAULT '',
+      profileImage TEXT DEFAULT '',
       verified INTEGER DEFAULT 0,
       createdAt TEXT DEFAULT '',
       updatedAt TEXT DEFAULT ''
     )
   `);
+
+  // Migration: add profileImage column if missing
+  await pool.query(`
+    ALTER TABLE users ADD COLUMN IF NOT EXISTS profileImage TEXT DEFAULT ''
+  `).catch(() => {});
 
   await pool.query(`
     CREATE TABLE IF NOT EXISTS otp (

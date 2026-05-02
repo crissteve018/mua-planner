@@ -1,6 +1,6 @@
 import React, { createContext, useState, useEffect, useCallback, useContext } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { getProfile } from '../api/auth';
+import { getProfile, updateProfile as apiUpdateProfile } from '../api/auth';
 import { setApiUserId } from '../api/events';
 
 const AuthContext = createContext();
@@ -47,8 +47,23 @@ export function AuthProvider({ children }) {
     await AsyncStorage.removeItem(AUTH_KEY);
   }, []);
 
+  const updateUser = useCallback(async (updates) => {
+    try {
+      const res = await apiUpdateProfile(updates);
+      if (res.success) {
+        setUser(res.data);
+        await AsyncStorage.setItem(AUTH_KEY, JSON.stringify(res.data));
+        return { success: true, data: res.data };
+      }
+      return { success: false, error: res.error };
+    } catch (err) {
+      console.error('Error updating profile:', err);
+      return { success: false, error: err.message };
+    }
+  }, []);
+
   return (
-    <AuthContext.Provider value={{ user, loading, signIn, signOut }}>
+    <AuthContext.Provider value={{ user, loading, signIn, signOut, updateUser }}>
       {children}
     </AuthContext.Provider>
   );
