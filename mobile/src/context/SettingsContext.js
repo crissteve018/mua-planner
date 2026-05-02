@@ -50,9 +50,10 @@ export function SettingsProvider({ children }) {
   /* ── compute theme colors ──────────────────── */
   const theme = useMemo(() => {
     const base = isDark ? { ...COLORS_DARK } : { ...COLORS };
-    // Apply dynamic theme color from settings
-    const tc = settings.themeColor || '#7B2D52';
-    base.primary = tc;
+    // Apply dynamic theme color — validate hex to prevent blank/invalid primary
+    const raw = settings.themeColor;
+    const isValidHex = (c) => typeof c === 'string' && /^#[0-9A-Fa-f]{6}$/.test(c.trim());
+    base.primary = isValidHex(raw) ? raw.trim() : '#7B2D52';
     return base;
   }, [isDark, settings.themeColor]);
 

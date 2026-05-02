@@ -9,6 +9,16 @@ const api = axios.create({
   },
 });
 
+// ─── Set User ID for API requests ────────────
+// This must be called when user logs in/restores session
+export const setApiUserId = (userId) => {
+  if (userId) {
+    api.defaults.headers.common['X-User-Id'] = userId;
+  } else {
+    delete api.defaults.headers.common['X-User-Id'];
+  }
+};
+
 // ─── Events API ──────────────────────────────
 
 export const getAllEvents = async (params = {}) => {

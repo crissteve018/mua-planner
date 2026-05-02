@@ -240,8 +240,9 @@ function AppNavigator() {
             ),
           }}
           listeners={({ navigation }) => ({
-            tabPress: () => {
-              navigation.navigate('EventsTab', { screen: 'EventList' });
+            tabPress: (e) => {
+              e.preventDefault();
+              navigation.navigate('EventsTab', { screen: 'EventList', initial: false });
             },
           })}
         />

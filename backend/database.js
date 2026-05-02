@@ -10,6 +10,7 @@ const pool = new Pool({
 
 // ── Column-name mapping (PG lowercase → camelCase) ──
 const CAMEL_COLUMNS = [
+  'userId',
   'clientName','clientPhone','alternativePhone','emailAddress',
   'eventType','buildingName','locationDirection',
   'workLocationDifferent','workCountry','workState','workCity',
@@ -83,9 +84,36 @@ async function transaction(fn) {
 
 // ── Initialize database tables ───────────────
 async function initializeDatabase() {
+  // Check if we need to run the userId migration
+  let needsMigration = false;
+  try {
+    // Check if events table has userId column
+    const result = await pool.query(`
+      SELECT column_name FROM information_schema.columns 
+      WHERE table_name = 'events' AND column_name = 'userid'
+    `);
+    if (result.rows.length === 0) {
+      needsMigration = true;
+    }
+  } catch {
+    needsMigration = true; // Table doesn't exist yet
+  }
+
+  if (needsMigration) {
+    // Drop tables to reset data and add userId (one-time migration)
+    console.log('🔄 Running userId migration - resetting database tables...');
+    await pool.query(`DROP TABLE IF EXISTS notifications CASCADE`);
+    await pool.query(`DROP TABLE IF EXISTS travel CASCADE`);
+  await pool.query(`DROP TABLE IF EXISTS team_members CASCADE`);
+  await pool.query(`DROP TABLE IF EXISTS team_contacts CASCADE`);
+  await pool.query(`DROP TABLE IF EXISTS settings CASCADE`);
+  await pool.query(`DROP TABLE IF EXISTS events CASCADE`);
+  await pool.query(`DROP TABLE IF EXISTS feedback CASCADE`);
+
   await pool.query(`
     CREATE TABLE IF NOT EXISTS events (
       id TEXT PRIMARY KEY,
+      userId TEXT NOT NULL,
       clientName TEXT NOT NULL,
       clientPhone TEXT DEFAULT '',
       alternativePhone TEXT DEFAULT '',
@@ -134,8 +162,7 @@ async function initializeDatabase() {
       updatedAt TEXT DEFAULT ''
     )
   `);
-
-  await pool.query(`UPDATE events SET status = 'upcoming' WHERE status = 'confirmed'`);
+  await pool.query(`CREATE INDEX IF NOT EXISTS idx_events_userId ON events(userId)`);
 
   await pool.query(`
     CREATE TABLE IF NOT EXISTS travel (
@@ -202,6 +229,7 @@ async function initializeDatabase() {
   await pool.query(`
     CREATE TABLE IF NOT EXISTS team_contacts (
       id TEXT PRIMARY KEY,
+      userId TEXT NOT NULL,
       name TEXT NOT NULL,
       defaultRole TEXT NOT NULL DEFAULT 'assistant',
       phone TEXT DEFAULT '',
@@ -210,27 +238,19 @@ async function initializeDatabase() {
       updatedAt TEXT DEFAULT ''
     )
   `);
+  await pool.query(`CREATE INDEX IF NOT EXISTS idx_team_contacts_userId ON team_contacts(userId)`);
 
   await pool.query(`
     CREATE TABLE IF NOT EXISTS settings (
-      key TEXT PRIMARY KEY,
+      id SERIAL PRIMARY KEY,
+      userId TEXT NOT NULL,
+      key TEXT NOT NULL,
       value TEXT NOT NULL DEFAULT '',
-      updatedAt TEXT DEFAULT ''
+      updatedAt TEXT DEFAULT '',
+      UNIQUE(userId, key)
     )
   `);
-
-  const { rows } = await pool.query('SELECT COUNT(*) as count FROM settings');
-  if (parseInt(rows[0].count) === 0) {
-    const defaults = {
-      themeColor: '#7B2D52', colorMode: 'light', fontSize: 'medium',
-      notificationsEnabled: 'false', notifyBefore: '60', notifyTimes: '1',
-      passcodeLock: 'false', passcode: '', mapsEnabled: 'true',
-    };
-    for (const [k, v] of Object.entries(defaults)) {
-      await pool.query('INSERT INTO settings (key, value) VALUES ($1, $2)', [k, v]);
-    }
-    console.log('  ↳ Settings: seeded defaults');
-  }
+  await pool.query(`CREATE INDEX IF NOT EXISTS idx_settings_userId ON settings(userId)`);
 
   await pool.query(`
     CREATE TABLE IF NOT EXISTS feedback (
@@ -279,7 +299,10 @@ async function initializeDatabase() {
     )
   `);
 
-  console.log('✅ Database initialized (PostgreSQL)');
+    console.log('✅ Database migrated with userId support');
+  } else {
+    console.log('✅ Database already up to date');
+  }
 }
 
 module.exports = { pool, all, get, run, transaction, initializeDatabase };

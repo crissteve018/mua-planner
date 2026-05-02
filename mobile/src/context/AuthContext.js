@@ -1,6 +1,7 @@
 import React, { createContext, useState, useEffect, useCallback, useContext } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { getProfile } from '../api/auth';
+import { setApiUserId } from '../api/events';
 
 const AuthContext = createContext();
 
@@ -21,6 +22,7 @@ export function AuthProvider({ children }) {
           const res = await getProfile(parsed.email);
           if (res.success) {
             setUser(res.data);
+            setApiUserId(res.data.id); // Set userId for API calls
           } else {
             await AsyncStorage.removeItem(AUTH_KEY);
           }
@@ -35,11 +37,13 @@ export function AuthProvider({ children }) {
 
   const signIn = useCallback(async (userData) => {
     setUser(userData);
+    setApiUserId(userData.id); // Set userId for API calls
     await AsyncStorage.setItem(AUTH_KEY, JSON.stringify(userData));
   }, []);
 
   const signOut = useCallback(async () => {
     setUser(null);
+    setApiUserId(null); // Clear userId from API calls
     await AsyncStorage.removeItem(AUTH_KEY);
   }, []);
 

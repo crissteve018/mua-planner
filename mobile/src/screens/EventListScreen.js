@@ -83,7 +83,7 @@ export default function EventListScreen({ navigation }) {
             accessibilityLabel="Search"
           >
             <Ionicons
-              name={showSearch ? 'close-circle' : 'search'}
+              name="search"
               size={21}
               color={showSearch ? C.primary : C.textSecondary}
             />
@@ -503,8 +503,8 @@ export default function EventListScreen({ navigation }) {
             <Text style={[styles.paneTitle, { color: C.text }]}>Filters</Text>
             <View style={styles.paneHeaderRight}>
               {hasActiveFilters && (
-                <TouchableOpacity onPress={clearAllFilters} style={styles.clearBtn}>
-                  <Text style={styles.clearBtnText}>Clear all</Text>
+                <TouchableOpacity onPress={clearAllFilters} style={[styles.clearBtn, { backgroundColor: C.dangerLight }]}>
+                  <Text style={[styles.clearBtnText, { color: C.danger }]}>Clear all</Text>
                 </TouchableOpacity>
               )}
               <TouchableOpacity onPress={closeFilterPane} hitSlop={8}>
@@ -626,10 +626,13 @@ export default function EventListScreen({ navigation }) {
             autoFocus
           />
           {searchText.length > 0 && (
-            <TouchableOpacity onPress={() => setSearchText('')}>
+            <TouchableOpacity onPress={() => setSearchText('')} style={{ marginRight: 4 }}>
               <Ionicons name="close-circle" size={18} color={C.textMuted} />
             </TouchableOpacity>
           )}
+          <TouchableOpacity onPress={() => { setSearchText(''); setShowSearch(false); }}>
+            <Ionicons name="close" size={20} color={C.textSecondary} />
+          </TouchableOpacity>
         </View>
       )}
 

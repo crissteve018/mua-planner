@@ -1,7 +1,4 @@
-import axios from 'axios';
-import API_BASE_URL from './config';
-
-const api = axios.create({ baseURL: API_BASE_URL, timeout: 10000 });
+import api from './events'; // Use shared axios instance with userId header
 
 export const getSettings = async () => {
   const { data } = await api.get('/api/settings');

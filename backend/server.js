@@ -1,4 +1,4 @@
-const express = require('express');
+ const express = require('express');
 const cors = require('cors');
 const nodemailer = require('nodemailer');
 const { v4: uuidv4 } = require('uuid');
@@ -67,21 +67,35 @@ const PORT = process.env.PORT || 3000;
 app.use(cors());
 app.use(express.json());
 
+// Extract userId from headers for data isolation
+app.use((req, res, next) => {
+  req.userId = req.headers['x-user-id'] || null;
+  next();
+});
+
+// Middleware to require userId for protected routes
+const requireUserId = (req, res, next) => {
+  if (!req.userId) {
+    return res.status(401).json({ success: false, error: 'User ID required' });
+  }
+  next();
+};
+
 // ─────────────────────────────────────────────
 // EVENTS API
 // ─────────────────────────────────────────────
 
-// GET /api/events — List all events
+// GET /api/events — List all events for the user
 // Optional query: ?status=upcoming|completed|cancelled  &search=name
-app.get('/api/events', async (req, res) => {
+app.get('/api/events', requireUserId, async (req, res) => {
   try {
     // Auto-complete: mark upcoming events with past dates as completed
     const today = new Date().toISOString().split('T')[0];
     const now = new Date().toISOString();
     await run(
       `UPDATE events SET status = 'completed', updatedAt = ?
-       WHERE status = 'upcoming' AND eventDate != '' AND eventDate <= ?`,
-      now, today
+       WHERE userId = ? AND status = 'upcoming' AND eventDate != '' AND eventDate <= ?`,
+      now, req.userId, today
     );
 
     const { status, search } = req.query;
@@ -89,7 +103,8 @@ app.get('/api/events', async (req, res) => {
       (SELECT STRING_AGG(DISTINCT t.travelMode, ',') FROM travel t WHERE t.eventId = e.id) AS "travelModes"
       FROM events e`;
     const params = [];
-    const conditions = [];
+    const conditions = ['e.userId = ?'];
+    params.push(req.userId);
 
     if (status && ['upcoming', 'completed', 'cancelled'].includes(status)) {
       conditions.push('e.status = ?');
@@ -99,9 +114,7 @@ app.get('/api/events', async (req, res) => {
       conditions.push('e.clientName LIKE ?');
       params.push(`%${search}%`);
     }
-    if (conditions.length > 0) {
-      sql += ' WHERE ' + conditions.join(' AND ');
-    }
+    sql += ' WHERE ' + conditions.join(' AND ');
     sql += ' ORDER BY e.createdAt DESC';
 
     const events = await all(sql, ...params);
@@ -113,9 +126,9 @@ app.get('/api/events', async (req, res) => {
 });
 
 // GET /api/events/:id — Get single event details
-app.get('/api/events/:id', async (req, res) => {
+app.get('/api/events/:id', requireUserId, async (req, res) => {
   try {
-    const event = await get('SELECT * FROM events WHERE id = ?', req.params.id);
+    const event = await get('SELECT * FROM events WHERE id = ? AND userId = ?', req.params.id, req.userId);
     if (!event) {
       return res.status(404).json({ success: false, error: 'Event not found' });
     }
@@ -127,7 +140,7 @@ app.get('/api/events/:id', async (req, res) => {
 });
 
 // POST /api/events — Create a new event
-app.post('/api/events', async (req, res) => {
+app.post('/api/events', requireUserId, async (req, res) => {
   try {
     const b = req.body;
 
@@ -143,7 +156,7 @@ app.post('/api/events', async (req, res) => {
 
     await run(`
       INSERT INTO events (
-        id, clientName, clientPhone, alternativePhone, emailAddress,
+        id, userId, clientName, clientPhone, alternativePhone, emailAddress,
         eventType, country, state, city, buildingName, address, locationDirection,
         workLocationDifferent, workCountry, workState, workCity,
         workBuildingName, workAddress, workLocationDirection,
@@ -155,7 +168,7 @@ app.post('/api/events', async (req, res) => {
         extraHairdo, extraHairdoCount, extraHairdoAmount,
         eventDate, eventTime, notes, status, createdAt, updatedAt
       ) VALUES (
-        ?, ?, ?, ?, ?,
+        ?, ?, ?, ?, ?, ?,
         ?, ?, ?, ?, ?, ?, ?,
         ?, ?, ?, ?,
         ?, ?, ?,
@@ -168,7 +181,7 @@ app.post('/api/events', async (req, res) => {
         ?, ?, ?, 'upcoming', ?, ?
       )
     `,
-      id, b.clientName, b.clientPhone || '', b.alternativePhone || '', b.emailAddress || '',
+      id, req.userId, b.clientName, b.clientPhone || '', b.alternativePhone || '', b.emailAddress || '',
       b.eventType, b.country || '', b.state || '', b.city || '', b.buildingName || '', b.address || '', b.locationDirection || '',
       b.workLocationDifferent ? 1 : 0, b.workCountry || '', b.workState || '', b.workCity || '',
       b.workBuildingName || '', b.workAddress || '', b.workLocationDirection || '',
@@ -190,9 +203,9 @@ app.post('/api/events', async (req, res) => {
 });
 
 // PUT /api/events/:id — Update an event
-app.put('/api/events/:id', async (req, res) => {
+app.put('/api/events/:id', requireUserId, async (req, res) => {
   try {
-    const existing = await get('SELECT * FROM events WHERE id = ?', req.params.id);
+    const existing = await get('SELECT * FROM events WHERE id = ? AND userId = ?', req.params.id, req.userId);
     if (!existing) {
       return res.status(404).json({ success: false, error: 'Event not found' });
     }
@@ -268,15 +281,15 @@ app.put('/api/events/:id', async (req, res) => {
 });
 
 // PUT /api/events/:id/complete — Mark an event as completed
-app.put('/api/events/:id/complete', async (req, res) => {
+app.put('/api/events/:id/complete', requireUserId, async (req, res) => {
   try {
-    const existing = await get('SELECT * FROM events WHERE id = ?', req.params.id);
+    const existing = await get('SELECT * FROM events WHERE id = ? AND userId = ?', req.params.id, req.userId);
     if (!existing) {
       return res.status(404).json({ success: false, error: 'Event not found' });
     }
 
     const now = new Date().toISOString();
-    await run(`UPDATE events SET status = 'completed', updatedAt = ? WHERE id = ?`, now, req.params.id);
+    await run(`UPDATE events SET status = 'completed', updatedAt = ? WHERE id = ? AND userId = ?`, now, req.params.id, req.userId);
 
     const updated = await get('SELECT * FROM events WHERE id = ?', req.params.id);
     res.json({ success: true, data: updated });
@@ -287,9 +300,9 @@ app.put('/api/events/:id/complete', async (req, res) => {
 });
 
 // PUT /api/events/:id/cancel — Cancel an event with sub-form data
-app.put('/api/events/:id/cancel', async (req, res) => {
+app.put('/api/events/:id/cancel', requireUserId, async (req, res) => {
   try {
-    const existing = await get('SELECT * FROM events WHERE id = ?', req.params.id);
+    const existing = await get('SELECT * FROM events WHERE id = ? AND userId = ?', req.params.id, req.userId);
     if (!existing) {
       return res.status(404).json({ success: false, error: 'Event not found' });
     }
@@ -301,10 +314,10 @@ app.put('/api/events/:id/cancel', async (req, res) => {
       UPDATE events SET
         status = 'cancelled', cancelDate = ?, cancelReason = ?,
         moneyOption = ?, moneyAmount = ?, updatedAt = ?
-      WHERE id = ?
+      WHERE id = ? AND userId = ?
     `,
       cancelDate || new Date().toISOString().split('T')[0],
-      cancelReason || '', moneyOption || '', moneyAmount || 0, now, req.params.id
+      cancelReason || '', moneyOption || '', moneyAmount || 0, now, req.params.id, req.userId
     );
 
     const updated = await get('SELECT * FROM events WHERE id = ?', req.params.id);
@@ -316,9 +329,9 @@ app.put('/api/events/:id/cancel', async (req, res) => {
 });
 
 // PUT /api/events/:id/restore — Restore a cancelled event back to upcoming
-app.put('/api/events/:id/restore', async (req, res) => {
+app.put('/api/events/:id/restore', requireUserId, async (req, res) => {
   try {
-    const existing = await get('SELECT * FROM events WHERE id = ?', req.params.id);
+    const existing = await get('SELECT * FROM events WHERE id = ? AND userId = ?', req.params.id, req.userId);
     if (!existing) {
       return res.status(404).json({ success: false, error: 'Event not found' });
     }
@@ -328,8 +341,8 @@ app.put('/api/events/:id/restore', async (req, res) => {
       UPDATE events SET
         status = 'upcoming', cancelDate = '', cancelReason = '',
         moneyOption = '', moneyAmount = 0, updatedAt = ?
-      WHERE id = ?
-    `, now, req.params.id);
+      WHERE id = ? AND userId = ?
+    `, now, req.params.id, req.userId);
 
     const updated = await get('SELECT * FROM events WHERE id = ?', req.params.id);
     res.json({ success: true, data: updated });
@@ -340,14 +353,14 @@ app.put('/api/events/:id/restore', async (req, res) => {
 });
 
 // DELETE /api/events/:id — Delete an event (returns deleted data for undo)
-app.delete('/api/events/:id', async (req, res) => {
+app.delete('/api/events/:id', requireUserId, async (req, res) => {
   try {
-    const existing = await get('SELECT * FROM events WHERE id = ?', req.params.id);
+    const existing = await get('SELECT * FROM events WHERE id = ? AND userId = ?', req.params.id, req.userId);
     if (!existing) {
       return res.status(404).json({ success: false, error: 'Event not found' });
     }
 
-    await run('DELETE FROM events WHERE id = ?', req.params.id);
+    await run('DELETE FROM events WHERE id = ? AND userId = ?', req.params.id, req.userId);
     res.json({ success: true, message: 'Event deleted', data: existing });
   } catch (err) {
     console.error('Error deleting event:', err);
@@ -356,14 +369,14 @@ app.delete('/api/events/:id', async (req, res) => {
 });
 
 // POST /api/events/restore — Re-insert a previously deleted event (undo)
-app.post('/api/events/restore', async (req, res) => {
+app.post('/api/events/restore', requireUserId, async (req, res) => {
   try {
     const e = req.body;
     if (!e.id) {
       return res.status(400).json({ success: false, error: 'Event data with id is required' });
     }
 
-    const exists = await get('SELECT id FROM events WHERE id = ?', e.id);
+    const exists = await get('SELECT id FROM events WHERE id = ? AND userId = ?', e.id, req.userId);
     if (exists) {
       const event = await get('SELECT * FROM events WHERE id = ?', e.id);
       return res.json({ success: true, data: event });
@@ -371,7 +384,7 @@ app.post('/api/events/restore', async (req, res) => {
 
     await run(`
       INSERT INTO events (
-        id, clientName, clientPhone, alternativePhone, emailAddress,
+        id, userId, clientName, clientPhone, alternativePhone, emailAddress,
         eventType, country, state, city, buildingName, address, locationDirection,
         workLocationDifferent, workCountry, workState, workCity,
         workBuildingName, workAddress, workLocationDirection,
@@ -385,7 +398,7 @@ app.post('/api/events/restore', async (req, res) => {
         cancelDate, cancelReason, moneyOption, moneyAmount,
         createdAt, updatedAt
       ) VALUES (
-        ?, ?, ?, ?, ?,
+        ?, ?, ?, ?, ?, ?,
         ?, ?, ?, ?, ?, ?, ?,
         ?, ?, ?, ?,
         ?, ?, ?,
@@ -400,7 +413,7 @@ app.post('/api/events/restore', async (req, res) => {
         ?, ?
       )
     `,
-      e.id, e.clientName || '', e.clientPhone || '', e.alternativePhone || '', e.emailAddress || '',
+      e.id, req.userId, e.clientName || '', e.clientPhone || '', e.alternativePhone || '', e.emailAddress || '',
       e.eventType || '', e.country || '', e.state || '', e.city || '', e.buildingName || '', e.address || '', e.locationDirection || '',
       e.workLocationDifferent ? 1 : 0, e.workCountry || '', e.workState || '', e.workCity || '',
       e.workBuildingName || '', e.workAddress || '', e.workLocationDirection || '',
@@ -428,7 +441,7 @@ app.post('/api/events/restore', async (req, res) => {
 // ─────────────────────────────────────────────
 
 // GET /api/travel — List travel records (optionally filter by eventId, eventStatus)
-app.get('/api/travel', async (req, res) => {
+app.get('/api/travel', requireUserId, async (req, res) => {
   try {
     const { eventId, travelMode, travelStatus, eventStatus } = req.query;
     let sql = `
@@ -437,7 +450,8 @@ app.get('/api/travel', async (req, res) => {
       LEFT JOIN events e ON t.eventId = e.id
     `;
     const params = [];
-    const conditions = [];
+    const conditions = ['e.userId = ?'];
+    params.push(req.userId);
 
     if (eventId) {
       conditions.push('t.eventId = ?');
@@ -455,9 +469,7 @@ app.get('/api/travel', async (req, res) => {
       conditions.push('e.status = ?');
       params.push(eventStatus);
     }
-    if (conditions.length > 0) {
-      sql += ' WHERE ' + conditions.join(' AND ');
-    }
+    sql += ' WHERE ' + conditions.join(' AND ');
     sql += ' ORDER BY t.travelDate ASC, t.legOrder ASC';
 
     const records = await all(sql, ...params);
@@ -469,8 +481,14 @@ app.get('/api/travel', async (req, res) => {
 });
 
 // GET /api/travel/summary/:eventId — Travel summary for an event
-app.get('/api/travel/summary/:eventId', async (req, res) => {
+app.get('/api/travel/summary/:eventId', requireUserId, async (req, res) => {
   try {
+    // Verify event belongs to user
+    const event = await get('SELECT id FROM events WHERE id = ? AND userId = ?', req.params.eventId, req.userId);
+    if (!event) {
+      return res.status(404).json({ success: false, error: 'Event not found' });
+    }
+
     const records = await all(
       `SELECT * FROM travel WHERE eventId = ? ORDER BY legOrder ASC, travelDate ASC`,
       req.params.eventId
@@ -490,13 +508,13 @@ app.get('/api/travel/summary/:eventId', async (req, res) => {
 });
 
 // GET /api/travel/:id — Single travel record
-app.get('/api/travel/:id', async (req, res) => {
+app.get('/api/travel/:id', requireUserId, async (req, res) => {
   try {
     const record = await get(
       `SELECT t.*, e.clientName, e.eventType, e.eventDate, e.city
        FROM travel t LEFT JOIN events e ON t.eventId = e.id
-       WHERE t.id = ?`,
-      req.params.id
+       WHERE t.id = ? AND e.userId = ?`,
+      req.params.id, req.userId
     );
     if (!record) {
       return res.status(404).json({ success: false, error: 'Travel record not found' });
@@ -509,7 +527,7 @@ app.get('/api/travel/:id', async (req, res) => {
 });
 
 // POST /api/travel — Create a travel record
-app.post('/api/travel', async (req, res) => {
+app.post('/api/travel', requireUserId, async (req, res) => {
   try {
     const b = req.body;
 
@@ -520,8 +538,8 @@ app.post('/api/travel', async (req, res) => {
       });
     }
 
-    // Validate event exists
-    const event = await get('SELECT id FROM events WHERE id = ?', b.eventId);
+    // Validate event exists and belongs to user
+    const event = await get('SELECT id FROM events WHERE id = ? AND userId = ?', b.eventId, req.userId);
     if (!event) {
       return res.status(404).json({ success: false, error: 'Event not found' });
     }
@@ -588,9 +606,13 @@ app.post('/api/travel', async (req, res) => {
 });
 
 // PUT /api/travel/:id — Update a travel record
-app.put('/api/travel/:id', async (req, res) => {
+app.put('/api/travel/:id', requireUserId, async (req, res) => {
   try {
-    const existing = await get('SELECT * FROM travel WHERE id = ?', req.params.id);
+    // Verify travel record exists and belongs to user's event
+    const existing = await get(
+      `SELECT t.* FROM travel t JOIN events e ON t.eventId = e.id WHERE t.id = ? AND e.userId = ?`,
+      req.params.id, req.userId
+    );
     if (!existing) {
       return res.status(404).json({ success: false, error: 'Travel record not found' });
     }
@@ -660,9 +682,13 @@ app.put('/api/travel/:id', async (req, res) => {
 });
 
 // DELETE /api/travel/:id — Delete a travel record
-app.delete('/api/travel/:id', async (req, res) => {
+app.delete('/api/travel/:id', requireUserId, async (req, res) => {
   try {
-    const existing = await get('SELECT * FROM travel WHERE id = ?', req.params.id);
+    // Verify travel record exists and belongs to user's event
+    const existing = await get(
+      `SELECT t.* FROM travel t JOIN events e ON t.eventId = e.id WHERE t.id = ? AND e.userId = ?`,
+      req.params.id, req.userId
+    );
     if (!existing) {
       return res.status(404).json({ success: false, error: 'Travel record not found' });
     }
@@ -680,7 +706,7 @@ app.delete('/api/travel/:id', async (req, res) => {
 // ─────────────────────────────────────────────
 
 // GET /api/team-contacts — list all contacts with pending balance
-app.get('/api/team-contacts', async (req, res) => {
+app.get('/api/team-contacts', requireUserId, async (req, res) => {
   try {
     const rows = await all(
       `SELECT tc.*,
@@ -689,8 +715,10 @@ app.get('/api/team-contacts', async (req, res) => {
               COALESCE(SUM(tm.amount - tm.amountPaid), 0) AS pendingBalance
        FROM team_contacts tc
        LEFT JOIN team_members tm ON tc.id = tm.contactId
+       WHERE tc.userId = ?
        GROUP BY tc.id
-       ORDER BY tc.name ASC`
+       ORDER BY tc.name ASC`,
+      req.userId
     );
     res.json({ success: true, data: rows });
   } catch (err) {
@@ -700,9 +728,9 @@ app.get('/api/team-contacts', async (req, res) => {
 });
 
 // GET /api/team-contacts/:id/payments — payment detail per contact
-app.get('/api/team-contacts/:id/payments', async (req, res) => {
+app.get('/api/team-contacts/:id/payments', requireUserId, async (req, res) => {
   try {
-    const contact = await get('SELECT * FROM team_contacts WHERE id = ?', req.params.id);
+    const contact = await get('SELECT * FROM team_contacts WHERE id = ? AND userId = ?', req.params.id, req.userId);
     if (!contact) return res.status(404).json({ success: false, error: 'Contact not found' });
 
     const events = await all(
@@ -710,9 +738,9 @@ app.get('/api/team-contacts/:id/payments', async (req, res) => {
               e.clientName AS eventName, e.eventType, e.eventDate, e.city AS eventCity
        FROM team_members tm
        LEFT JOIN events e ON tm.eventId = e.id
-       WHERE tm.contactId = ?
+       WHERE tm.contactId = ? AND e.userId = ?
        ORDER BY e.eventDate DESC`,
-      req.params.id
+      req.params.id, req.userId
     );
 
     const totalAmount = events.reduce((s, r) => s + (r.amount || 0), 0);
@@ -736,7 +764,7 @@ app.get('/api/team-contacts/:id/payments', async (req, res) => {
 });
 
 // POST /api/team-contacts — create contact
-app.post('/api/team-contacts', async (req, res) => {
+app.post('/api/team-contacts', requireUserId, async (req, res) => {
   try {
     const { name, defaultRole, phone, notes } = req.body;
     if (!name || !name.trim()) {
@@ -745,9 +773,9 @@ app.post('/api/team-contacts', async (req, res) => {
     const id = require('crypto').randomUUID();
     const now = new Date().toISOString();
     await run(
-      `INSERT INTO team_contacts (id, name, defaultRole, phone, notes, createdAt, updatedAt)
-       VALUES (?, ?, ?, ?, ?, ?, ?)`,
-      id, name.trim(), defaultRole || 'assistant', phone || '', notes || '', now, now
+      `INSERT INTO team_contacts (id, userId, name, defaultRole, phone, notes, createdAt, updatedAt)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      id, req.userId, name.trim(), defaultRole || 'assistant', phone || '', notes || '', now, now
     );
     const created = await get('SELECT * FROM team_contacts WHERE id = ?', id);
     res.status(201).json({ success: true, data: created });
@@ -758,16 +786,16 @@ app.post('/api/team-contacts', async (req, res) => {
 });
 
 // PUT /api/team-contacts/:id — update contact
-app.put('/api/team-contacts/:id', async (req, res) => {
+app.put('/api/team-contacts/:id', requireUserId, async (req, res) => {
   try {
-    const existing = await get('SELECT * FROM team_contacts WHERE id = ?', req.params.id);
+    const existing = await get('SELECT * FROM team_contacts WHERE id = ? AND userId = ?', req.params.id, req.userId);
     if (!existing) return res.status(404).json({ success: false, error: 'Contact not found' });
     const { name, defaultRole, phone, notes } = req.body;
     const now = new Date().toISOString();
     await run(
-      `UPDATE team_contacts SET name = ?, defaultRole = ?, phone = ?, notes = ?, updatedAt = ? WHERE id = ?`,
+      `UPDATE team_contacts SET name = ?, defaultRole = ?, phone = ?, notes = ?, updatedAt = ? WHERE id = ? AND userId = ?`,
       name?.trim() ?? existing.name, defaultRole ?? existing.defaultRole,
-      phone ?? existing.phone, notes ?? existing.notes, now, req.params.id
+      phone ?? existing.phone, notes ?? existing.notes, now, req.params.id, req.userId
     );
     const updated = await get('SELECT * FROM team_contacts WHERE id = ?', req.params.id);
     res.json({ success: true, data: updated });
@@ -778,11 +806,11 @@ app.put('/api/team-contacts/:id', async (req, res) => {
 });
 
 // DELETE /api/team-contacts/:id — delete contact
-app.delete('/api/team-contacts/:id', async (req, res) => {
+app.delete('/api/team-contacts/:id', requireUserId, async (req, res) => {
   try {
-    const existing = await get('SELECT * FROM team_contacts WHERE id = ?', req.params.id);
+    const existing = await get('SELECT * FROM team_contacts WHERE id = ? AND userId = ?', req.params.id, req.userId);
     if (!existing) return res.status(404).json({ success: false, error: 'Contact not found' });
-    await run('DELETE FROM team_contacts WHERE id = ?', req.params.id);
+    await run('DELETE FROM team_contacts WHERE id = ? AND userId = ?', req.params.id, req.userId);
     res.json({ success: true, message: 'Contact deleted', data: existing });
   } catch (err) {
     console.error('Error deleting team contact:', err);
@@ -795,14 +823,15 @@ app.delete('/api/team-contacts/:id', async (req, res) => {
 // ─────────────────────────────────────────────
 
 // GET /api/team?eventId=...
-app.get('/api/team', async (req, res) => {
+app.get('/api/team', requireUserId, async (req, res) => {
   try {
     const { eventId } = req.query;
     let sql = `SELECT t.*, e.clientName AS eventName, e.eventType, e.eventDate
-               FROM team_members t LEFT JOIN events e ON t.eventId = e.id`;
-    const params = [];
+               FROM team_members t LEFT JOIN events e ON t.eventId = e.id
+               WHERE e.userId = ?`;
+    const params = [req.userId];
     if (eventId) {
-      sql += ' WHERE t.eventId = ?';
+      sql += ' AND t.eventId = ?';
       params.push(eventId);
     }
     sql += ' ORDER BY t.createdAt DESC';
@@ -815,8 +844,12 @@ app.get('/api/team', async (req, res) => {
 });
 
 // GET /api/team/summary/:eventId — Team summary for an event
-app.get('/api/team/summary/:eventId', async (req, res) => {
+app.get('/api/team/summary/:eventId', requireUserId, async (req, res) => {
   try {
+    // Verify event belongs to user
+    const event = await get('SELECT id FROM events WHERE id = ? AND userId = ?', req.params.eventId, req.userId);
+    if (!event) return res.status(404).json({ success: false, error: 'Event not found' });
+
     const rows = await all(
       'SELECT * FROM team_members WHERE eventId = ? ORDER BY teamRole ASC, createdAt ASC',
       req.params.eventId
@@ -834,13 +867,13 @@ app.get('/api/team/summary/:eventId', async (req, res) => {
 });
 
 // GET /api/team/:id — Single team member
-app.get('/api/team/:id', async (req, res) => {
+app.get('/api/team/:id', requireUserId, async (req, res) => {
   try {
     const row = await get(
       `SELECT t.*, e.clientName AS eventName, e.eventType, e.eventDate
        FROM team_members t LEFT JOIN events e ON t.eventId = e.id
-       WHERE t.id = ?`,
-      req.params.id
+       WHERE t.id = ? AND e.userId = ?`,
+      req.params.id, req.userId
     );
     if (!row) return res.status(404).json({ success: false, error: 'Team member not found' });
     res.json({ success: true, data: row });
@@ -851,14 +884,14 @@ app.get('/api/team/:id', async (req, res) => {
 });
 
 // POST /api/team — Create team member
-app.post('/api/team', async (req, res) => {
+app.post('/api/team', requireUserId, async (req, res) => {
   try {
     const b = req.body;
     if (!b.eventId || !b.teamRole) {
       return res.status(400).json({ success: false, error: 'eventId and teamRole are required' });
     }
-    // Check event exists
-    const ev = await get('SELECT id FROM events WHERE id = ?', b.eventId);
+    // Check event exists and belongs to user
+    const ev = await get('SELECT id FROM events WHERE id = ? AND userId = ?', b.eventId, req.userId);
     if (!ev) return res.status(404).json({ success: false, error: 'Event not found' });
 
     // Enforce max per role
@@ -896,9 +929,13 @@ app.post('/api/team', async (req, res) => {
 });
 
 // PUT /api/team/:id — Update team member
-app.put('/api/team/:id', async (req, res) => {
+app.put('/api/team/:id', requireUserId, async (req, res) => {
   try {
-    const existing = await get('SELECT * FROM team_members WHERE id = ?', req.params.id);
+    // Verify team member exists and belongs to user's event
+    const existing = await get(
+      `SELECT tm.* FROM team_members tm JOIN events e ON tm.eventId = e.id WHERE tm.id = ? AND e.userId = ?`,
+      req.params.id, req.userId
+    );
     if (!existing) return res.status(404).json({ success: false, error: 'Team member not found' });
 
     const b = req.body;
@@ -928,9 +965,13 @@ app.put('/api/team/:id', async (req, res) => {
 });
 
 // DELETE /api/team/:id — Delete team member
-app.delete('/api/team/:id', async (req, res) => {
+app.delete('/api/team/:id', requireUserId, async (req, res) => {
   try {
-    const existing = await get('SELECT * FROM team_members WHERE id = ?', req.params.id);
+    // Verify team member exists and belongs to user's event
+    const existing = await get(
+      `SELECT tm.* FROM team_members tm JOIN events e ON tm.eventId = e.id WHERE tm.id = ? AND e.userId = ?`,
+      req.params.id, req.userId
+    );
     if (!existing) return res.status(404).json({ success: false, error: 'Team member not found' });
     await run('DELETE FROM team_members WHERE id = ?', req.params.id);
     res.json({ success: true, message: 'Team member deleted', data: existing });
@@ -945,9 +986,9 @@ app.delete('/api/team/:id', async (req, res) => {
 // ─────────────────────────────────────────────
 
 // GET /api/settings — Get all settings as key → value object
-app.get('/api/settings', async (req, res) => {
+app.get('/api/settings', requireUserId, async (req, res) => {
   try {
-    const rows = await all('SELECT key, value FROM settings');
+    const rows = await all('SELECT key, value FROM settings WHERE userId = ?', req.userId);
     const data = {};
     rows.forEach(r => { data[r.key] = r.value; });
     res.json({ success: true, data });
@@ -958,22 +999,22 @@ app.get('/api/settings', async (req, res) => {
 });
 
 // PUT /api/settings — Upsert one or many settings
-app.put('/api/settings', async (req, res) => {
+app.put('/api/settings', requireUserId, async (req, res) => {
   try {
     const updates = req.body;
     const now = new Date().toISOString();
     await transaction(async (client) => {
       for (const [k, v] of Object.entries(updates)) {
         await client.run(
-          `INSERT INTO settings (key, value, updatedAt)
-           VALUES (?, ?, ?)
-           ON CONFLICT(key) DO UPDATE SET value = EXCLUDED.value, updatedAt = EXCLUDED.updatedAt`,
-          k, String(v), now
+          `INSERT INTO settings (userId, key, value, updatedAt)
+           VALUES (?, ?, ?, ?)
+           ON CONFLICT(userId, key) DO UPDATE SET value = EXCLUDED.value, updatedAt = EXCLUDED.updatedAt`,
+          req.userId, k, String(v), now
         );
       }
     });
 
-    const rows = await all('SELECT key, value FROM settings');
+    const rows = await all('SELECT key, value FROM settings WHERE userId = ?', req.userId);
     const data = {};
     rows.forEach(r => { data[r.key] = r.value; });
     res.json({ success: true, data });
@@ -1238,32 +1279,32 @@ app.get('/api/auth/me/:email', async (req, res) => {
 // DASHBOARD API
 // ─────────────────────────────────────────────
 
-app.get('/api/dashboard', async (req, res) => {
+app.get('/api/dashboard', requireUserId, async (req, res) => {
   try {
     const today = new Date().toISOString().split('T')[0];
     const now = new Date().toISOString();
 
-    // Auto-complete past upcoming events
+    // Auto-complete past upcoming events for this user
     await run(
       `UPDATE events SET status = 'completed', updatedAt = ?
-       WHERE status = 'upcoming' AND eventDate != '' AND eventDate <= ?`,
-      now, today
+       WHERE userId = ? AND status = 'upcoming' AND eventDate != '' AND eventDate <= ?`,
+      now, req.userId, today
     );
 
     // Today's events
     const todayEvents = await all(
       `SELECT id, clientName, eventType, city, eventTime, status
-       FROM events WHERE eventDate = ? AND status != 'cancelled'
+       FROM events WHERE userId = ? AND eventDate = ? AND status != 'cancelled'
        ORDER BY eventTime ASC`,
-      today
+      req.userId, today
     );
 
     // Upcoming events (next 5, after today)
     const upcomingEvents = await all(
       `SELECT id, clientName, eventType, city, eventDate, eventTime, status
-       FROM events WHERE eventDate > ? AND status = 'upcoming'
+       FROM events WHERE userId = ? AND eventDate > ? AND status = 'upcoming'
        ORDER BY eventDate ASC, eventTime ASC LIMIT 5`,
-      today
+      req.userId, today
     );
 
     // This month stats
@@ -1272,19 +1313,20 @@ app.get('/api/dashboard', async (req, res) => {
 
     const monthEvents = await get(
       `SELECT COUNT(*) as count FROM events
-       WHERE eventDate >= ? AND eventDate <= ? AND status != 'cancelled'`,
-      monthStart, monthEnd
+       WHERE userId = ? AND eventDate >= ? AND eventDate <= ? AND status != 'cancelled'`,
+      req.userId, monthStart, monthEnd
     );
 
     const monthEarnings = await get(
       `SELECT COALESCE(SUM(packageAmount), 0) as total FROM events
-       WHERE eventDate >= ? AND eventDate <= ? AND status != 'cancelled'`,
-      monthStart, monthEnd
+       WHERE userId = ? AND eventDate >= ? AND eventDate <= ? AND status != 'cancelled'`,
+      req.userId, monthStart, monthEnd
     );
 
     const pendingPayments = await get(
       `SELECT COALESCE(SUM(packageAmount - advancePaid), 0) as total FROM events
-       WHERE status = 'upcoming' AND packageAmount > advancePaid`
+       WHERE userId = ? AND status = 'upcoming' AND packageAmount > advancePaid`,
+      req.userId
     );
 
     // Upcoming travel needing attention (planned/not booked)
@@ -1292,19 +1334,21 @@ app.get('/api/dashboard', async (req, res) => {
       `SELECT t.id, t.travelMode, t.travelDate, t.travelStatus, t.bookingStatus,
               e.clientName, e.eventType, e.city
        FROM travel t LEFT JOIN events e ON t.eventId = e.id
-       WHERE t.travelDate >= ? AND (t.travelStatus = 'planned' OR t.bookingStatus = 'not_booked')
+       WHERE e.userId = ? AND t.travelDate >= ? AND (t.travelStatus = 'planned' OR t.bookingStatus = 'not_booked')
        AND e.status = 'upcoming'
        ORDER BY t.travelDate ASC LIMIT 5`,
-      today
+      req.userId, today
     );
 
     // Total counts for summary
     const totalUpcoming = await get(
-      `SELECT COUNT(*) as count FROM events WHERE status = 'upcoming'`
+      `SELECT COUNT(*) as count FROM events WHERE userId = ? AND status = 'upcoming'`,
+      req.userId
     );
 
     const totalCompleted = await get(
-      `SELECT COUNT(*) as count FROM events WHERE status = 'completed'`
+      `SELECT COUNT(*) as count FROM events WHERE userId = ? AND status = 'completed'`,
+      req.userId
     );
 
     res.json({
