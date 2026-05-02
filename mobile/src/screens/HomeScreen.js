@@ -76,16 +76,27 @@ export default function HomeScreen({ navigation }) {
                 mediaTypes: ['images'],
                 allowsEditing: true,
                 aspect: [1, 1],
-                quality: 0.3,
+                quality: 0.1,
                 base64: true,
+                exif: false,
               });
 
               if (!result.canceled && result.assets[0]) {
                 setUploadingImage(true);
-                const base64Image = `data:image/jpeg;base64,${result.assets[0].base64}`;
+                const base64Data = result.assets[0].base64;
+                const sizeKB = Math.round(base64Data.length / 1024);
+                console.log(`Image size: ${sizeKB} KB`);
+                
+                if (sizeKB > 500) {
+                  Alert.alert('Image Too Large', `Please select a smaller image (current: ${sizeKB}KB, max: 500KB)`);
+                  setUploadingImage(false);
+                  return;
+                }
+                
+                const base64Image = `data:image/jpeg;base64,${base64Data}`;
                 const res = await updateUser({ profileImage: base64Image });
                 if (!res.success) {
-                  Alert.alert('Error', 'Failed to update profile picture. Please try again.');
+                  Alert.alert('Error', res.error || 'Failed to update profile picture. Please try again.');
                 }
                 setUploadingImage(false);
               }

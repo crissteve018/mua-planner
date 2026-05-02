@@ -49,7 +49,9 @@ export function AuthProvider({ children }) {
 
   const updateUser = useCallback(async (updates) => {
     try {
+      console.log('Updating profile...');
       const res = await apiUpdateProfile(updates);
+      console.log('Profile update response:', res.success ? 'success' : res.error);
       if (res.success) {
         setUser(res.data);
         await AsyncStorage.setItem(AUTH_KEY, JSON.stringify(res.data));
@@ -57,8 +59,8 @@ export function AuthProvider({ children }) {
       }
       return { success: false, error: res.error };
     } catch (err) {
-      console.error('Error updating profile:', err);
-      return { success: false, error: err.message };
+      console.error('Error updating profile:', err.message, err.response?.status, err.response?.data);
+      return { success: false, error: err.response?.data?.error || err.message };
     }
   }, []);
 

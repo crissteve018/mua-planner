@@ -1288,14 +1288,14 @@ app.put('/api/auth/profile', requireUserId, async (req, res) => {
     }
 
     await run(
-      `UPDATE users SET name = ?, profileImage = ?, updatedAt = ? WHERE id = ?`,
+      `UPDATE users SET name = ?, profileimage = ?, updatedat = ? WHERE id = ?`,
       name ?? existing.name,
       profileImage ?? existing.profileImage,
       now,
       req.userId
     );
 
-    const updated = await get('SELECT id, email, name, profileImage, verified, createdAt FROM users WHERE id = ?', req.userId);
+    const updated = await get('SELECT id, email, name, profileimage, verified, createdat FROM users WHERE id = ?', req.userId);
     res.json({ success: true, data: updated });
   } catch (err) {
     console.error('Error updating profile:', err);
