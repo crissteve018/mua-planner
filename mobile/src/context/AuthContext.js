@@ -18,16 +18,20 @@ export function AuthProvider({ children }) {
         const stored = await AsyncStorage.getItem(AUTH_KEY);
         if (stored) {
           const parsed = JSON.parse(stored);
+          // Set userId FIRST so API calls work
+          setApiUserId(parsed.id);
           // Verify the user still exists on server
           const res = await getProfile(parsed.email);
           if (res.success) {
             setUser(res.data);
-            setApiUserId(res.data.id); // Set userId for API calls
           } else {
+            setApiUserId(null);
             await AsyncStorage.removeItem(AUTH_KEY);
           }
         }
-      } catch {
+      } catch (err) {
+        console.log('Session restore failed:', err.message);
+        setApiUserId(null);
         // Silent fail — user stays logged out
       } finally {
         setLoading(false);

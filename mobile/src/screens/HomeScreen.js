@@ -7,13 +7,9 @@ import {
   StyleSheet,
   RefreshControl,
   ActivityIndicator,
-  Image,
-  Alert,
-  Linking,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
-import * as ImagePicker from 'expo-image-picker';
 import { getDashboard } from '../api/dashboard';
 import { useTheme } from '../context/SettingsContext';
 import { useAuth } from '../context/AuthContext';
@@ -21,11 +17,10 @@ import { COLORS, EVENT_TYPE_EMOJI, TRAVEL_MODE_MAP } from '../constants';
 
 export default function HomeScreen({ navigation }) {
   const C = useTheme();
-  const { user, updateUser } = useAuth();
+  const { user } = useAuth();
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [uploadingImage, setUploadingImage] = useState(false);
 
   const fetchDashboard = useCallback(async (isRefresh = false) => {
     if (isRefresh) setRefreshing(true);
@@ -46,70 +41,6 @@ export default function HomeScreen({ navigation }) {
       fetchDashboard();
     }, [fetchDashboard])
   );
-
-  // ── Pick Profile Image ──
-  const pickImage = async () => {
-    // Show confirmation dialog first
-    Alert.alert(
-      'Add Profile Photo',
-      'MUA Planner would like to access your photo library to set your profile picture.',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        { 
-          text: 'Allow', 
-          onPress: async () => {
-            try {
-              const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-              if (status !== 'granted') {
-                Alert.alert(
-                  'Permission Denied', 
-                  'Please enable photo access in Settings to set a profile picture.',
-                  [
-                    { text: 'Cancel', style: 'cancel' },
-                    { text: 'Open Settings', onPress: () => Linking.openSettings() }
-                  ]
-                );
-                return;
-              }
-
-              const result = await ImagePicker.launchImageLibraryAsync({
-                mediaTypes: ['images'],
-                allowsEditing: true,
-                aspect: [1, 1],
-                quality: 0.1,
-                base64: true,
-                exif: false,
-              });
-
-              if (!result.canceled && result.assets[0]) {
-                setUploadingImage(true);
-                const base64Data = result.assets[0].base64;
-                const sizeKB = Math.round(base64Data.length / 1024);
-                console.log(`Image size: ${sizeKB} KB`);
-                
-                if (sizeKB > 500) {
-                  Alert.alert('Image Too Large', `Please select a smaller image (current: ${sizeKB}KB, max: 500KB)`);
-                  setUploadingImage(false);
-                  return;
-                }
-                
-                const base64Image = `data:image/jpeg;base64,${base64Data}`;
-                const res = await updateUser({ profileImage: base64Image });
-                if (!res.success) {
-                  Alert.alert('Error', res.error || 'Failed to update profile picture. Please try again.');
-                }
-                setUploadingImage(false);
-              }
-            } catch (err) {
-              console.error('Image picker error:', err);
-              setUploadingImage(false);
-              Alert.alert('Error', 'Failed to pick image');
-            }
-          }
-        }
-      ]
-    );
-  };
 
   // ── Get user's first name ──
   const getFirstName = () => {
@@ -173,29 +104,11 @@ export default function HomeScreen({ navigation }) {
             <Text style={styles.greetingText}>Hey, {getFirstName()} ✨</Text>
             <Text style={styles.dateText}>{formatDate()}</Text>
           </View>
-          <TouchableOpacity 
-            onPress={pickImage} 
-            activeOpacity={0.8}
-            disabled={uploadingImage}
-          >
-            <View style={[styles.avatarCircle, { backgroundColor: 'rgba(255,255,255,0.2)' }]}>
-              {uploadingImage ? (
-                <ActivityIndicator size="small" color="#fff" />
-              ) : user?.profileImage ? (
-                <Image 
-                  source={{ uri: user.profileImage }} 
-                  style={styles.avatarImage}
-                />
-              ) : (
-                <View style={styles.avatarPlaceholder}>
-                  <Ionicons name="person" size={24} color="rgba(255,255,255,0.6)" />
-                  <View style={styles.addIconBadge}>
-                    <Ionicons name="add-circle" size={18} color="#fff" />
-                  </View>
-                </View>
-              )}
-            </View>
-          </TouchableOpacity>
+          <View style={[styles.avatarCircle, { backgroundColor: 'rgba(255,255,255,0.25)' }]}>
+            <Text style={styles.avatarLetter}>
+              {(user?.name?.[0] || 'A').toUpperCase()}
+            </Text>
+          </View>
         </View>
       </View>
 
@@ -447,28 +360,16 @@ const styles = StyleSheet.create({
     fontWeight: '500',
   },
   avatarCircle: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    justifyContent: 'center',
-    alignItems: 'center',
-    overflow: 'hidden',
-  },
-  avatarImage: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-  },
-  avatarPlaceholder: {
-    width: 56,
-    height: 56,
+    width: 48,
+    height: 48,
+    borderRadius: 24,
     justifyContent: 'center',
     alignItems: 'center',
   },
-  addIconBadge: {
-    position: 'absolute',
-    bottom: 4,
-    right: 4,
+  avatarLetter: {
+    fontSize: 22,
+    fontWeight: '700',
+    color: '#fff',
   },
 
   // Stats
