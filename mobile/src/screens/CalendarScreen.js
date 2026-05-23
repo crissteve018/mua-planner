@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useMemo } from 'react';
+import React, { useState, useCallback, useMemo, useLayoutEffect } from 'react';
 import {
   View,
   Text,
@@ -119,6 +119,23 @@ export default function CalendarScreen({ navigation }) {
   const [events, setEvents] = useState([]);
   const [loading, setLoading] = useState(true);
 
+  /* ── header right button ────────────────────── */
+  useLayoutEffect(() => {
+    navigation.setOptions({
+      headerRight: () => (
+        <View style={styles.headerActions}>
+          <TouchableOpacity
+            style={styles.headerBtn}
+            onPress={() => navigation.navigate('AddEventFromCalendar', { prefilledDate: selectedDate })}
+            accessibilityLabel="Add event"
+          >
+            <Ionicons name="add-circle" size={24} color={C.primary} />
+          </TouchableOpacity>
+        </View>
+      ),
+    });
+  }, [navigation, selectedDate, C]);
+
   /* ── fetch all events ───────────────────────── */
   useFocusEffect(
     useCallback(() => {
@@ -173,11 +190,6 @@ export default function CalendarScreen({ navigation }) {
   /* ── selected day events ────────────────────── */
   const selectedEvents = eventsByDate[selectedDate] || [];
   const selectedIsMuhurtham = MUHURTHAM_DATES.has(selectedDate);
-
-  /* ── add event with pre-filled date ─────────── */
-  const handleAddEvent = () => {
-    navigation.navigate('AddEventFromCalendar', { prefilledDate: selectedDate });
-  };
 
   /* ── render day cell ────────────────────────── */
   const renderDay = (item) => {
@@ -460,10 +472,6 @@ export default function CalendarScreen({ navigation }) {
         showsVerticalScrollIndicator={false}
       />
 
-      {/* ── FAB: Add Event ──────────────────── */}
-      <TouchableOpacity style={[styles.fab, { backgroundColor: C.primary }]} activeOpacity={0.85} onPress={handleAddEvent}>
-        <Ionicons name="add" size={28} color="#FFF" />
-      </TouchableOpacity>
     </View>
   );
 }
@@ -692,21 +700,18 @@ const styles = StyleSheet.create({
   emptyDayTitle: { fontSize: 16, fontWeight: '700', color: COLORS.text, marginTop: 12 },
   emptyDaySubtitle: { fontSize: 13, color: COLORS.textSecondary, marginTop: 4 },
 
-  /* FAB */
-  fab: {
-    position: 'absolute',
-    bottom: 24,
-    right: 20,
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    backgroundColor: COLORS.primary,
-    justifyContent: 'center',
+  /* Header Actions */
+  headerActions: {
+    flexDirection: 'row',
     alignItems: 'center',
-    shadowColor: COLORS.primaryDark,
-    shadowOpacity: 0.35,
-    shadowRadius: 8,
-    shadowOffset: { width: 0, height: 4 },
-    elevation: 6,
+    gap: 6,
+    marginRight: 4,
+  },
+  headerBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
 });

@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useLayoutEffect } from 'react';
 import {
   View,
   Text,
@@ -52,6 +52,23 @@ export default function ManageTeamScreen({ navigation }) {
       fetchContacts();
     }, [fetchContacts])
   );
+
+  /* ── header right button ─────────────────────── */
+  useLayoutEffect(() => {
+    navigation.setOptions({
+      headerRight: () => (
+        <View style={styles.headerActions}>
+          <TouchableOpacity
+            style={styles.headerBtn}
+            onPress={openAdd}
+            accessibilityLabel="Add team member"
+          >
+            <Ionicons name="add-circle" size={24} color={C.primary} />
+          </TouchableOpacity>
+        </View>
+      ),
+    });
+  }, [navigation, C]);
 
   const openAdd = () => {
     setEditing(null);
@@ -171,14 +188,6 @@ export default function ManageTeamScreen({ navigation }) {
           </View>
         }
       />
-
-      <TouchableOpacity
-        style={[styles.fab, { backgroundColor: C.primary }]}
-        onPress={openAdd}
-        activeOpacity={0.8}
-      >
-        <Ionicons name="add" size={28} color="#FFF" />
-      </TouchableOpacity>
 
       {/* ── Add / Edit Modal ── */}
       <Modal visible={modalVisible} animationType="slide" transparent>
@@ -301,11 +310,18 @@ const styles = StyleSheet.create({
   emptyContainer: { alignItems: 'center', paddingTop: 80, paddingHorizontal: 40 },
   emptyTitle: { fontSize: 17, fontWeight: '700', marginTop: 16 },
   emptyHint: { fontSize: 13, textAlign: 'center', marginTop: 8, lineHeight: 18 },
-  fab: {
-    position: 'absolute', bottom: 24, right: 24, width: 56, height: 56,
-    borderRadius: 28, justifyContent: 'center', alignItems: 'center',
-    elevation: 5, shadowColor: '#000', shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.25, shadowRadius: 4,
+  headerActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginRight: 4,
+  },
+  headerBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
   modalContent: { borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 20 },
