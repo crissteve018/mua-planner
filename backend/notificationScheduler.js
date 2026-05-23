@@ -188,7 +188,13 @@ async function runNotificationCheck() {
     for (const event of events) {
       // Parse event datetime
       const eventDateTime = parseEventDateTime(event.eventDate, event.eventTime);
-      if (!eventDateTime || eventDateTime <= now) continue; // skip past events
+      if (!eventDateTime) continue; // invalid date/time
+      
+      // CRITICAL: Skip if event has already started (even by 1 minute)
+      // This prevents sending "24 hours before" reminders after the event started
+      if (eventDateTime <= now) {
+        continue;
+      }
 
       // Calculate reminder schedule
       // e.g. notifyBefore=60, notifyTimes=3 → reminders at 60min, 30min, 15min before
@@ -204,7 +210,13 @@ async function runNotificationCheck() {
 
         // Check if it's time to send (within a 2-minute window since cron runs every minute)
         const diffMs = now - reminderTime;
-        if (diffMs < 0 || diffMs > 2 * 60 * 1000) continue; // not yet or already past window
+        
+        // Skip if not yet time (reminder is still in future)
+        if (diffMs < 0) continue;
+        
+        // Skip if reminder window passed (more than 5 minutes ago)
+        // This prevents sending stale reminders when server restarts or was down
+        if (diffMs > 5 * 60 * 1000) continue;
 
         // Send to each user
         for (const user of users) {
@@ -253,7 +265,7 @@ async function runNotificationCheck() {
   }
 }
 
-/* ─── Parse event date + time into a Date ──── */
+/* ─── Parse event date + time into a Date (IST timezone) ──── */
 function parseEventDateTime(dateStr, timeStr) {
   try {
     if (!dateStr) return null;
@@ -277,9 +289,13 @@ function parseEventDateTime(dateStr, timeStr) {
       }
     }
 
-    const d = new Date(dateStr + 'T00:00:00');
-    d.setHours(hours, minutes, 0, 0);
-    return d;
+    // Parse as IST (UTC+5:30) since users are in India
+    // Format: YYYY-MM-DDTHH:mm:ss+05:30
+    const pad = (n) => String(n).padStart(2, '0');
+    const isoString = `${dateStr}T${pad(hours)}:${pad(minutes)}:00+05:30`;
+    const d = new Date(isoString);
+    
+    return isNaN(d.getTime()) ? null : d;
   } catch {
     return null;
   }
