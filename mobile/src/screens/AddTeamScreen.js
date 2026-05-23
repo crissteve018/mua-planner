@@ -324,6 +324,7 @@ export default function AddTeamScreen({ navigation, route }) {
                   value={member.amount}
                   onChangeText={(v) => updateMember(index, 'amount', v)}
                   keyboardType="numeric"
+                  textContentType="none"
                 />
 
                 <Text style={[styles.label, { color: C.textSecondary }]}>Payment Status</Text>

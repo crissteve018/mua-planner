@@ -624,6 +624,7 @@ export default function EventListScreen({ navigation }) {
             value={searchText}
             onChangeText={setSearchText}
             autoFocus
+            textContentType="none"
           />
           {searchText.length > 0 && (
             <TouchableOpacity onPress={() => setSearchText('')} style={{ marginRight: 4 }}>

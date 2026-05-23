@@ -152,6 +152,7 @@ export default function EditTeamScreen({ navigation, route }) {
             keyboardType="numeric"
             placeholder="0"
             placeholderTextColor={C.textMuted}
+            textContentType="none"
           />
 
           {/* Settled toggle */}

@@ -233,6 +233,7 @@ export default function ManageTeamScreen({ navigation }) {
                   value={name}
                   onChangeText={setName}
                   autoFocus
+                  textContentType="name"
                 />
 
                 <Text style={[styles.label, { color: C.textSecondary }]}>Role</Text>

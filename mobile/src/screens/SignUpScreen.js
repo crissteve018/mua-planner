@@ -85,6 +85,7 @@ export default function SignUpScreen({ navigation }) {
                 onChangeText={setName}
                 autoCapitalize="words"
                 returnKeyType="next"
+                textContentType="name"
               />
             </View>
           </View>
@@ -96,7 +97,8 @@ export default function SignUpScreen({ navigation }) {
               <TextInput
                 style={styles.input}
                 placeholder="you@example.com"
-                placeholderTextColor={COLORS.textMuted}
+                placeholderTe
+                textContentType="emailAddress"xtColor={COLORS.textMuted}
                 value={email}
                 onChangeText={setEmail}
                 autoCapitalize="none"

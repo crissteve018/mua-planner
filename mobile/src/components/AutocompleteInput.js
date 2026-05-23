@@ -68,6 +68,7 @@ export default function AutocompleteInput({
           onFocus={() => { setFocused(true); if (onInputFocus) onInputFocus(); }}
           onBlur={() => setTimeout(() => setFocused(false), 200)}
           editable={editable}
+          textContentType="none"
         />
         {value ? (
           <TouchableOpacity
