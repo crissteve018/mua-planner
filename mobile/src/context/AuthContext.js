@@ -6,10 +6,20 @@ import { setApiUserId } from '../api/events';
 const AuthContext = createContext();
 
 const AUTH_KEY = '@mua_planner_auth';
+const SESSION_EXPIRY_DAYS = 30;
 
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
+
+  // Check if session has expired
+  const isSessionExpired = (loginTime) => {
+    if (!loginTime) return true;
+    const loginDate = new Date(loginTime);
+    const now = new Date();
+    const diffDays = (now - loginDate) / (1000 * 60 * 60 * 24);
+    return diffDays > SESSION_EXPIRY_DAYS;
+  };
 
   // Restore session on app launch
   useEffect(() => {
@@ -18,6 +28,16 @@ export function AuthProvider({ children }) {
         const stored = await AsyncStorage.getItem(AUTH_KEY);
         if (stored) {
           const parsed = JSON.parse(stored);
+          
+          // Check if session has expired (30 days)
+          if (isSessionExpired(parsed.loginTime)) {
+            console.log('Session expired after 30 days, signing out');
+            setApiUserId(null);
+            await AsyncStorage.removeItem(AUTH_KEY);
+            setLoading(false);
+            return;
+          }
+          
           // Set userId FIRST so API calls work
           setApiUserId(parsed.id);
           
@@ -25,9 +45,13 @@ export function AuthProvider({ children }) {
             // Try to verify the user still exists on server
             const res = await getProfile(parsed.email);
             if (res.success) {
-              // Update with fresh data from server
-              setUser(res.data);
-              await AsyncStorage.setItem(AUTH_KEY, JSON.stringify(res.data));
+              // Update with fresh data from server, but preserve loginTime
+              const refreshedUser = {
+                ...res.data,
+                loginTime: parsed.loginTime,
+              };
+              setUser(refreshedUser);
+              await AsyncStorage.setItem(AUTH_KEY, JSON.stringify(refreshedUser));
             } else {
               // Unexpected response - use cached data
               console.log('Unexpected server response, using cached session');
@@ -58,9 +82,14 @@ export function AuthProvider({ children }) {
   }, []);
 
   const signIn = useCallback(async (userData) => {
-    setUser(userData);
+    // Add loginTime for session expiration tracking
+    const userWithLoginTime = {
+      ...userData,
+      loginTime: new Date().toISOString(),
+    };
+    setUser(userWithLoginTime);
     setApiUserId(userData.id); // Set userId for API calls
-    await AsyncStorage.setItem(AUTH_KEY, JSON.stringify(userData));
+    await AsyncStorage.setItem(AUTH_KEY, JSON.stringify(userWithLoginTime));
   }, []);
 
   const signOut = useCallback(async () => {
@@ -75,16 +104,21 @@ export function AuthProvider({ children }) {
       const res = await apiUpdateProfile(updates);
       console.log('Profile update response:', res.success ? 'success' : res.error);
       if (res.success) {
-        setUser(res.data);
-        await AsyncStorage.setItem(AUTH_KEY, JSON.stringify(res.data));
-        return { success: true, data: res.data };
+        // Preserve loginTime when updating user data
+        const updatedUser = {
+          ...res.data,
+          loginTime: user?.loginTime || new Date().toISOString(),
+        };
+        setUser(updatedUser);
+        await AsyncStorage.setItem(AUTH_KEY, JSON.stringify(updatedUser));
+        return { success: true, data: updatedUser };
       }
       return { success: false, error: res.error };
     } catch (err) {
       console.error('Error updating profile:', err.message, err.response?.status, err.response?.data);
       return { success: false, error: err.response?.data?.error || err.message };
     }
-  }, []);
+  }, [user]);
 
   return (
     <AuthContext.Provider value={{ user, loading, signIn, signOut, updateUser }}>
