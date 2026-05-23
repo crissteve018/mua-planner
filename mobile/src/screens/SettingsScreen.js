@@ -19,7 +19,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { COLORS } from '../constants';
 import { useSettings, useTheme } from '../context/SettingsContext';
 import { useAuth } from '../context/AuthContext';
-import { submitFeedback, clearAllData } from '../api/settings';
+import { submitFeedback } from '../api/settings';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
@@ -62,7 +62,7 @@ const NOTIFY_BEFORE_OPTIONS = [
 
 export default function SettingsScreen() {
   const navigation = useNavigation();
-  const { settings, updateSettings, resetSettings } = useSettings();
+  const { settings, updateSettings } = useSettings();
   const C = useTheme();
 
   /* ── Modal states ─────────────────────────── */
@@ -176,30 +176,6 @@ export default function SettingsScreen() {
     } finally {
       setFbSending(false);
     }
-  };
-
-  /* ── Clear data ───────────────────────────── */
-  const handleClearData = () => {
-    Alert.alert(
-      'Clear App Data',
-      'This will permanently delete all events, travel records, feedback, and reset all settings to defaults.\n\nThis action cannot be undone.',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Clear All Data',
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              await clearAllData();
-              resetSettings();
-              Alert.alert('Done', 'All app data has been cleared and settings reset.');
-            } catch (err) {
-              Alert.alert('Error', 'Failed to clear data. Please try again.');
-            }
-          },
-        },
-      ]
-    );
   };
 
   /* ── Sign out ─────────────────────────────── */
@@ -485,13 +461,6 @@ export default function SettingsScreen() {
               <Text style={[styles.comingSoonText, { color: C.warning }]}>Soon</Text>
             </View>
           }
-        />
-        <Divider />
-        <SettingRow
-          label="Clear App Data"
-          subtitle="Delete all events, travel & settings"
-          right={<Ionicons name="chevron-forward" size={18} color={C.textMuted} />}
-          onPress={handleClearData}
           last
         />
       </View>
