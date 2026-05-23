@@ -28,6 +28,7 @@ import TeamContactDetailScreen from './src/screens/TeamContactDetailScreen';
 import HomeScreen from './src/screens/HomeScreen';
 import CalendarScreen from './src/screens/CalendarScreen';
 import SettingsScreen from './src/screens/SettingsScreen';
+import PrivacyPolicyScreen from './src/screens/PrivacyPolicyScreen';
 
 import { SettingsProvider, useSettings, useTheme } from './src/context/SettingsContext';
 import { AuthProvider, useAuth } from './src/context/AuthContext';
@@ -188,6 +189,11 @@ function SettingsStack() {
         name="Settings"
         component={SettingsScreen}
         options={{ title: 'Settings' }}
+      />
+      <Stack.Screen
+        name="PrivacyPolicy"
+        component={PrivacyPolicyScreen}
+        options={{ title: 'Privacy Policy' }}
       />
     </Stack.Navigator>
   );

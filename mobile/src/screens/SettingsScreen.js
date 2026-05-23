@@ -14,6 +14,7 @@ import {
   Platform,
   ActivityIndicator,
 } from 'react-native';
+import { useNavigation } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { COLORS } from '../constants';
 import { useSettings, useTheme } from '../context/SettingsContext';
@@ -67,6 +68,7 @@ const NOTIFY_TIMES_OPTIONS = [
    ═══════════════════════════════════════════════ */
 
 export default function SettingsScreen() {
+  const navigation = useNavigation();
   const { settings, updateSettings, resetSettings } = useSettings();
   const C = useTheme();
 
@@ -555,6 +557,13 @@ export default function SettingsScreen() {
           ══════════════════════════════════════ */}
       <SectionHeader icon="information-circle" title="About" color="#37474F" />
       <View style={[styles.card, { backgroundColor: C.surface }]}>
+        <SettingRow
+          label="Privacy Policy"
+          subtitle="How we handle your data"
+          right={<Ionicons name="chevron-forward" size={18} color={C.textMuted} />}
+          onPress={() => navigation.navigate('PrivacyPolicy')}
+        />
+        <Divider />
         <SettingRow
           label="Version"
           right={<Text style={[styles.versionText, { color: C.textSecondary }]}>1.0.0</Text>}
