@@ -49,18 +49,11 @@ const FONT_SIZES = [
 ];
 
 const NOTIFY_BEFORE_OPTIONS = [
-  { key: '15',   label: '15 min' },
-  { key: '30',   label: '30 min' },
   { key: '60',   label: '1 hour' },
-  { key: '120',  label: '2 hours' },
-  { key: '1440', label: '1 day' },
+  { key: '240',  label: '4 hours' },
+  { key: '480',  label: '8 hours' },
+  { key: '1440', label: '24 hours' },
   { key: '2880', label: '2 days' },
-];
-
-const NOTIFY_TIMES_OPTIONS = [
-  { key: '1', label: 'Once' },
-  { key: '2', label: 'Twice' },
-  { key: '3', label: '3 times' },
 ];
 
 /* ═══════════════════════════════════════════════
@@ -94,7 +87,7 @@ export default function SettingsScreen() {
   const fontSize = settings.fontSize || 'medium';
   const notificationsEnabled = settings.notificationsEnabled === 'true';
   const notifyBefore = settings.notifyBefore || '60';
-  const notifyTimes = settings.notifyTimes || '1';
+
   const passcodeLock = settings.passcodeLock === 'true';
   const mapsEnabled = settings.mapsEnabled === 'true';
   const currentFontDemo = FONT_SIZES.find(f => f.key === fontSize)?.demo || 15;
@@ -115,7 +108,7 @@ export default function SettingsScreen() {
   const handleFontSize = (size) => updateSettings({ fontSize: size });
   const handleNotificationsToggle = (val) => updateSettings({ notificationsEnabled: String(val) });
   const handleNotifyBefore = (val) => updateSettings({ notifyBefore: val });
-  const handleNotifyTimes = (val) => updateSettings({ notifyTimes: val });
+
   const handleMapsToggle = (val) => updateSettings({ mapsEnabled: String(val) });
 
   /* ── Passcode toggle ──────────────────────── */
@@ -441,37 +434,6 @@ export default function SettingsScreen() {
                         styles.chipText,
                         { color: C.textSecondary },
                         notifyBefore === o.key && styles.chipTextActive,
-                      ]}
-                    >
-                      {o.label}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
-            </View>
-
-            <Divider />
-
-            <View style={styles.settingBlock}>
-              <Text style={[styles.settingLabel, { color: C.text }]}>Number of Reminders</Text>
-              <Text style={[styles.settingSubtitle, { color: C.textSecondary }]}>How many times to be reminded</Text>
-              <View style={styles.chipRow}>
-                {NOTIFY_TIMES_OPTIONS.map((o) => (
-                  <TouchableOpacity
-                    key={o.key}
-                    style={[
-                      styles.chip,
-                      { backgroundColor: C.inputBg, borderColor: C.border },
-                      notifyTimes === o.key && { backgroundColor: themeColor, borderColor: themeColor },
-                    ]}
-                    onPress={() => handleNotifyTimes(o.key)}
-                    activeOpacity={0.7}
-                  >
-                    <Text
-                      style={[
-                        styles.chipText,
-                        { color: C.textSecondary },
-                        notifyTimes === o.key && styles.chipTextActive,
                       ]}
                     >
                       {o.label}

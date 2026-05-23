@@ -176,7 +176,6 @@ async function runNotificationCheck() {
       if (!enabled) continue; // notifications disabled for this user
 
       const notifyBeforeMin = parseInt(settings.notifyBefore || '60', 10);
-      const notifyTimes = parseInt(settings.notifyTimes || '1', 10);
 
       // Get THIS USER's upcoming events with date and time set
       const events = await all(
@@ -195,66 +194,56 @@ async function runNotificationCheck() {
           continue;
         }
 
-        // Calculate reminder schedule based on user's settings
-        // e.g. notifyBefore=60, notifyTimes=3 → reminders at 60min, 30min, 15min before
-        const reminderSlots = [];
-        for (let i = 0; i < notifyTimes; i++) {
-          const minutesBefore = Math.round(notifyBeforeMin / (i + 1));
-          if (minutesBefore < 5) break; // don't send reminders less than 5 min before
-          reminderSlots.push({ reminderNumber: i + 1, minutesBefore });
-        }
+        // Calculate single reminder time based on user's notifyBefore setting
+        const reminderTime = new Date(eventDateTime.getTime() - notifyBeforeMin * 60 * 1000);
 
-        for (const slot of reminderSlots) {
-          const reminderTime = new Date(eventDateTime.getTime() - slot.minutesBefore * 60 * 1000);
+        // Check if it's time to send (within a 2-minute window since cron runs every minute)
+        const diffMs = now - reminderTime;
+        
+        // Skip if not yet time (reminder is still in future)
+        if (diffMs < 0) continue;
+        
+        // Skip if reminder window passed (more than 5 minutes ago)
+        // This prevents sending stale reminders when server restarts or was down
+        if (diffMs > 5 * 60 * 1000) continue;
 
-          // Check if it's time to send (within a 2-minute window since cron runs every minute)
-          const diffMs = now - reminderTime;
-          
-          // Skip if not yet time (reminder is still in future)
-          if (diffMs < 0) continue;
-          
-          // Skip if reminder window passed (more than 5 minutes ago)
-          // This prevents sending stale reminders when server restarts or was down
-          if (diffMs > 5 * 60 * 1000) continue;
+        // Check if already sent for this event + user
+        const existing = await get(
+          `SELECT id FROM notifications
+           WHERE eventId = ? AND email = ? AND status = 'sent'`,
+          event.id, user.email
+        );
 
-          // Check if already sent for this event + reminder number + user
-          const existing = await get(
-            `SELECT id FROM notifications
-             WHERE eventId = ? AND email = ? AND reminderNumber = ? AND status = 'sent'`,
-            event.id, user.email, slot.reminderNumber
-          );
+        if (existing) continue; // already sent
 
-          if (existing) continue; // already sent
+        // Build and send email
+        const { subject, html } = buildReminderEmail(event, notifyBeforeMin);
+        const notifId = uuidv4();
+        const notifNow = new Date().toISOString();
 
-          // Build and send email
-          const { subject, html } = buildReminderEmail(event, slot.minutesBefore);
-          const notifId = uuidv4();
-          const notifNow = new Date().toISOString();
+        // Insert pending notification
+        await run(
+          `INSERT INTO notifications (id, eventId, email, reminderNumber, scheduledFor, subject, body, createdAt)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+          notifId, event.id, user.email, 1, reminderTime.toISOString(), subject, 'email', notifNow
+        );
 
-          // Insert pending notification
-          await run(
-            `INSERT INTO notifications (id, eventId, email, reminderNumber, scheduledFor, subject, body, createdAt)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-            notifId, event.id, user.email, slot.reminderNumber, reminderTime.toISOString(), subject, 'email', notifNow
-          );
-
-          // Send the email
-          sendEmail(user.email, subject, html).then(async (result) => {
-            if (result.success) {
-              await run(
-                `UPDATE notifications SET status = 'sent', sentAt = ? WHERE id = ?`,
-                new Date().toISOString(), notifId
-              );
-              console.log(`✅ Reminder #${slot.reminderNumber} sent to ${user.email} for "${event.clientName} — ${event.eventType}"`);
-            } else {
-              await run(
-                `UPDATE notifications SET status = 'failed' WHERE id = ?`,
-                notifId
-              );
-              console.log(`❌ Reminder failed for ${user.email}: ${result.error}`);
-            }
-          });
-        }
+        // Send the email
+        sendEmail(user.email, subject, html).then(async (result) => {
+          if (result.success) {
+            await run(
+              `UPDATE notifications SET status = 'sent', sentAt = ? WHERE id = ?`,
+              new Date().toISOString(), notifId
+            );
+            console.log(`✅ Reminder sent to ${user.email} for "${event.clientName} — ${event.eventType}"`);
+          } else {
+            await run(
+              `UPDATE notifications SET status = 'failed' WHERE id = ?`,
+              notifId
+            );
+            console.log(`❌ Reminder failed for ${user.email}: ${result.error}`);
+          }
+        });
       }
     }
   } catch (err) {

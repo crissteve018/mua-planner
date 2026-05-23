@@ -12,7 +12,6 @@ const DEFAULT_SETTINGS = {
   fontSize: 'medium',
   notificationsEnabled: 'false',
   notifyBefore: '60',
-  notifyTimes: '1',
   passcodeLock: 'false',
   passcode: '',
   mapsEnabled: 'true',

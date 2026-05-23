@@ -266,8 +266,7 @@ const validateUpdateProfile = [
 // ── Settings ────────────────────────────────────
 const validateUpdateSettings = [
   body('notificationsEnabled').optional().isBoolean(),
-  body('notifyBefore').optional().isInt({ min: 5, max: 10080 }),
-  body('notifyTimes').optional().isInt({ min: 1, max: 5 }),
+  body('notifyBefore').optional().isIn(['60', '240', '480', '1440', '2880']).withMessage('Invalid remind before value'),
   body('theme').optional().isIn(['light', 'dark', 'system']),
   handleValidation,
 ];

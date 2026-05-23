@@ -1072,7 +1072,7 @@ app.delete('/api/data/clear', async (req, res) => {
       // Re-seed defaults
       const defaults = {
         themeColor: '#7B2D52', colorMode: 'light', fontSize: 'medium',
-        notificationsEnabled: 'false', notifyBefore: '60', notifyTimes: '1',
+        notificationsEnabled: 'false', notifyBefore: '60',
         passcodeLock: 'false', passcode: '', mapsEnabled: 'true',
       };
       for (const [k, v] of Object.entries(defaults)) {
