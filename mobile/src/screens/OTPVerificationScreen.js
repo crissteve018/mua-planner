@@ -137,9 +137,10 @@ export default function OTPVerificationScreen({ route, navigation }) {
               ref={(ref) => (inputs.current[i] = ref)}
               style={[
                 styles.otpBox,
-                digit ? styles.otpBoxFilled : null,              ])
+                digit ? styles.otpBoxFilled : null,
+              ]}
               textContentType={i === 0 ? "oneTimeCode" : "none"}
-              autoComplete={i === 0 ? "sms-otp" : undefined},              ]}
+              autoComplete={i === 0 ? "sms-otp" : "off"}
               value={digit}
               onChangeText={(text) => handleChange(text, i)}
               onKeyPress={(e) => handleKeyPress(e, i)}
