@@ -451,16 +451,6 @@ export default function SettingsScreen() {
               thumbColor={mapsEnabled ? themeColor : C.inputBg}
             />
           }
-        />
-        <Divider />
-        <SettingRow
-          label="Biometric Authentication"
-          subtitle="Use Face ID or fingerprint"
-          right={
-            <View style={[styles.comingSoonBadge, { backgroundColor: C.warningLight }]}>
-              <Text style={[styles.comingSoonText, { color: C.warning }]}>Soon</Text>
-            </View>
-          }
           last
         />
       </View>
