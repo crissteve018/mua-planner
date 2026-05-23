@@ -20,13 +20,31 @@ export function AuthProvider({ children }) {
           const parsed = JSON.parse(stored);
           // Set userId FIRST so API calls work
           setApiUserId(parsed.id);
-          // Verify the user still exists on server
-          const res = await getProfile(parsed.email);
-          if (res.success) {
-            setUser(res.data);
-          } else {
-            setApiUserId(null);
-            await AsyncStorage.removeItem(AUTH_KEY);
+          
+          try {
+            // Try to verify the user still exists on server
+            const res = await getProfile(parsed.email);
+            if (res.success) {
+              // Update with fresh data from server
+              setUser(res.data);
+              await AsyncStorage.setItem(AUTH_KEY, JSON.stringify(res.data));
+            } else {
+              // Unexpected response - use cached data
+              console.log('Unexpected server response, using cached session');
+              setUser(parsed);
+            }
+          } catch (apiErr) {
+            // Check if user was deleted from server (404)
+            if (apiErr.response?.status === 404 && 
+                apiErr.response?.data?.error === 'User not found') {
+              console.log('User no longer exists on server, clearing session');
+              setApiUserId(null);
+              await AsyncStorage.removeItem(AUTH_KEY);
+            } else {
+              // Network error or server issue - use cached data instead of logging out
+              console.log('API error during session restore, using cached data:', apiErr.message);
+              setUser(parsed);
+            }
           }
         }
       } catch (err) {
