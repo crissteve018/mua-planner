@@ -165,57 +165,58 @@ async function runNotificationCheck() {
     // Get all verified users
     const users = await all('SELECT id, email FROM users WHERE verified = 1');
 
-    // Read global notification settings
-    const settingsRows = await all('SELECT key, value FROM settings');
-    const settings = {};
-    settingsRows.forEach(r => { settings[r.key] = r.value; });
+    for (const user of users) {
+      // Read THIS USER's notification settings
+      const settingsRows = await all('SELECT key, value FROM settings WHERE userId = ?', user.id);
+      const settings = {};
+      settingsRows.forEach(r => { settings[r.key] = r.value; });
 
-    const enabled = settings.notificationsEnabled === 'true';
-    if (!enabled) return; // notifications disabled globally
+      // Check if notifications are enabled for this user
+      const enabled = settings.notificationsEnabled === 'true';
+      if (!enabled) continue; // notifications disabled for this user
 
-    const notifyBeforeMin = parseInt(settings.notifyBefore || '60', 10);
-    const notifyTimes = parseInt(settings.notifyTimes || '1', 10);
+      const notifyBeforeMin = parseInt(settings.notifyBefore || '60', 10);
+      const notifyTimes = parseInt(settings.notifyTimes || '1', 10);
 
-    // Get all upcoming events with date and time set
-    const events = await all(
-      `SELECT * FROM events WHERE status = 'upcoming' AND eventDate != '' AND eventTime != ''`
-    );
+      // Get THIS USER's upcoming events with date and time set
+      const events = await all(
+        `SELECT * FROM events WHERE userId = ? AND status = 'upcoming' AND eventDate != '' AND eventTime != ''`,
+        user.id
+      );
 
-    for (const event of events) {
-      // Parse event datetime
-      const eventDateTime = parseEventDateTime(event.eventDate, event.eventTime);
-      if (!eventDateTime) continue; // invalid date/time
-      
-      // CRITICAL: Skip if event has already started (even by 1 minute)
-      // This prevents sending "24 hours before" reminders after the event started
-      if (eventDateTime <= now) {
-        continue;
-      }
-
-      // Calculate reminder schedule
-      // e.g. notifyBefore=60, notifyTimes=3 → reminders at 60min, 30min, 15min before
-      const reminderSlots = [];
-      for (let i = 0; i < notifyTimes; i++) {
-        const minutesBefore = Math.round(notifyBeforeMin / (i + 1));
-        if (minutesBefore < 5) break; // don't send reminders less than 5 min before
-        reminderSlots.push({ reminderNumber: i + 1, minutesBefore });
-      }
-
-      for (const slot of reminderSlots) {
-        const reminderTime = new Date(eventDateTime.getTime() - slot.minutesBefore * 60 * 1000);
-
-        // Check if it's time to send (within a 2-minute window since cron runs every minute)
-        const diffMs = now - reminderTime;
+      for (const event of events) {
+        // Parse event datetime
+        const eventDateTime = parseEventDateTime(event.eventDate, event.eventTime);
+        if (!eventDateTime) continue; // invalid date/time
         
-        // Skip if not yet time (reminder is still in future)
-        if (diffMs < 0) continue;
-        
-        // Skip if reminder window passed (more than 5 minutes ago)
-        // This prevents sending stale reminders when server restarts or was down
-        if (diffMs > 5 * 60 * 1000) continue;
+        // CRITICAL: Skip if event has already started (even by 1 minute)
+        // This prevents sending "24 hours before" reminders after the event started
+        if (eventDateTime <= now) {
+          continue;
+        }
 
-        // Send to each user
-        for (const user of users) {
+        // Calculate reminder schedule based on user's settings
+        // e.g. notifyBefore=60, notifyTimes=3 → reminders at 60min, 30min, 15min before
+        const reminderSlots = [];
+        for (let i = 0; i < notifyTimes; i++) {
+          const minutesBefore = Math.round(notifyBeforeMin / (i + 1));
+          if (minutesBefore < 5) break; // don't send reminders less than 5 min before
+          reminderSlots.push({ reminderNumber: i + 1, minutesBefore });
+        }
+
+        for (const slot of reminderSlots) {
+          const reminderTime = new Date(eventDateTime.getTime() - slot.minutesBefore * 60 * 1000);
+
+          // Check if it's time to send (within a 2-minute window since cron runs every minute)
+          const diffMs = now - reminderTime;
+          
+          // Skip if not yet time (reminder is still in future)
+          if (diffMs < 0) continue;
+          
+          // Skip if reminder window passed (more than 5 minutes ago)
+          // This prevents sending stale reminders when server restarts or was down
+          if (diffMs > 5 * 60 * 1000) continue;
+
           // Check if already sent for this event + reminder number + user
           const existing = await get(
             `SELECT id FROM notifications
