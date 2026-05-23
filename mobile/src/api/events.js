@@ -9,6 +9,19 @@ const api = axios.create({
   },
 });
 
+// ─── Request Interceptor: HTTPS Security Check ────────────
+api.interceptors.request.use(
+  (config) => {
+    const fullUrl = config.baseURL + (config.url || '');
+    if (!__DEV__ && fullUrl.startsWith('http://')) {
+      console.warn('⚠️ SECURITY: Blocking non-HTTPS request:', fullUrl);
+      return Promise.reject(new Error('Non-HTTPS requests are not allowed in production'));
+    }
+    return config;
+  },
+  (error) => Promise.reject(error)
+);
+
 // ─── Set User ID for API requests ────────────
 // This must be called when user logs in/restores session
 export const setApiUserId = (userId) => {
