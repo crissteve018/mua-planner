@@ -132,10 +132,6 @@ function buildReminderEmail(event, minutesBefore) {
             <td style="padding: 8px 0; color: #5C5C70; font-weight: 600;">Location</td>
             <td style="padding: 8px 0; color: #1A1A2E; text-align: right;">${location}</td>
           </tr>
-          ${event.packageAmount ? `<tr>
-            <td style="padding: 8px 0; color: #5C5C70; font-weight: 600;">Package</td>
-            <td style="padding: 8px 0; color: #1A1A2E; text-align: right;">₹${Number(event.packageAmount).toLocaleString('en-IN')}</td>
-          </tr>` : ''}
         </table>
 
         ${event.notes ? `<p style="margin: 16px 0 0; padding: 12px; background: #F7F5F2; border-radius: 8px; font-size: 13px; color: #5C5C70;">
