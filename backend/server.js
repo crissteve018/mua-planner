@@ -4,6 +4,14 @@ const nodemailer = require('nodemailer');
 const { v4: uuidv4 } = require('uuid');
 const { all, get, run, transaction, initializeDatabase } = require('./database');
 const { startNotificationScheduler } = require('./notificationScheduler');
+const {
+  validateCreateEvent, validateUpdateEvent, validateEventId, validateCancelEvent, validateEventQuery,
+  validateCreateTravel, validateUpdateTravel, validateTravelId, validateTravelQuery,
+  validateCreateTeamContact, validateUpdateTeamContact, validateTeamContactId,
+  validateCreateTeamMember, validateUpdateTeamMember, validateTeamMemberId,
+  validateSignup, validateLogin, validateVerifyOTP, validateResendOTP, validateUpdateProfile,
+  validateUpdateSettings, validateFeedback,
+} = require('./validators');
 
 // ── Email transport (Brevo SMTP) ─────────────
 let mailTransporter = null;
@@ -88,7 +96,7 @@ const requireUserId = (req, res, next) => {
 
 // GET /api/events — List all events for the user
 // Optional query: ?status=upcoming|completed|cancelled  &search=name
-app.get('/api/events', requireUserId, async (req, res) => {
+app.get('/api/events', requireUserId, validateEventQuery, async (req, res) => {
   try {
     // Auto-complete: mark upcoming events with past dates as completed
     const today = new Date().toISOString().split('T')[0];
@@ -127,7 +135,7 @@ app.get('/api/events', requireUserId, async (req, res) => {
 });
 
 // GET /api/events/:id — Get single event details
-app.get('/api/events/:id', requireUserId, async (req, res) => {
+app.get('/api/events/:id', requireUserId, validateEventId, async (req, res) => {
   try {
     const event = await get('SELECT * FROM events WHERE id = ? AND userId = ?', req.params.id, req.userId);
     if (!event) {
@@ -141,7 +149,7 @@ app.get('/api/events/:id', requireUserId, async (req, res) => {
 });
 
 // POST /api/events — Create a new event
-app.post('/api/events', requireUserId, async (req, res) => {
+app.post('/api/events', requireUserId, validateCreateEvent, async (req, res) => {
   try {
     const b = req.body;
 
@@ -204,7 +212,7 @@ app.post('/api/events', requireUserId, async (req, res) => {
 });
 
 // PUT /api/events/:id — Update an event
-app.put('/api/events/:id', requireUserId, async (req, res) => {
+app.put('/api/events/:id', requireUserId, validateUpdateEvent, async (req, res) => {
   try {
     const existing = await get('SELECT * FROM events WHERE id = ? AND userId = ?', req.params.id, req.userId);
     if (!existing) {
@@ -282,7 +290,7 @@ app.put('/api/events/:id', requireUserId, async (req, res) => {
 });
 
 // PUT /api/events/:id/complete — Mark an event as completed
-app.put('/api/events/:id/complete', requireUserId, async (req, res) => {
+app.put('/api/events/:id/complete', requireUserId, validateEventId, async (req, res) => {
   try {
     const existing = await get('SELECT * FROM events WHERE id = ? AND userId = ?', req.params.id, req.userId);
     if (!existing) {
@@ -301,7 +309,7 @@ app.put('/api/events/:id/complete', requireUserId, async (req, res) => {
 });
 
 // PUT /api/events/:id/cancel — Cancel an event with sub-form data
-app.put('/api/events/:id/cancel', requireUserId, async (req, res) => {
+app.put('/api/events/:id/cancel', requireUserId, validateCancelEvent, async (req, res) => {
   try {
     const existing = await get('SELECT * FROM events WHERE id = ? AND userId = ?', req.params.id, req.userId);
     if (!existing) {
@@ -330,7 +338,7 @@ app.put('/api/events/:id/cancel', requireUserId, async (req, res) => {
 });
 
 // PUT /api/events/:id/restore — Restore a cancelled event back to upcoming
-app.put('/api/events/:id/restore', requireUserId, async (req, res) => {
+app.put('/api/events/:id/restore', requireUserId, validateEventId, async (req, res) => {
   try {
     const existing = await get('SELECT * FROM events WHERE id = ? AND userId = ?', req.params.id, req.userId);
     if (!existing) {
@@ -354,7 +362,7 @@ app.put('/api/events/:id/restore', requireUserId, async (req, res) => {
 });
 
 // DELETE /api/events/:id — Delete an event (returns deleted data for undo)
-app.delete('/api/events/:id', requireUserId, async (req, res) => {
+app.delete('/api/events/:id', requireUserId, validateEventId, async (req, res) => {
   try {
     const existing = await get('SELECT * FROM events WHERE id = ? AND userId = ?', req.params.id, req.userId);
     if (!existing) {
@@ -442,7 +450,7 @@ app.post('/api/events/restore', requireUserId, async (req, res) => {
 // ─────────────────────────────────────────────
 
 // GET /api/travel — List travel records (optionally filter by eventId, eventStatus)
-app.get('/api/travel', requireUserId, async (req, res) => {
+app.get('/api/travel', requireUserId, validateTravelQuery, async (req, res) => {
   try {
     const { eventId, travelMode, travelStatus, eventStatus } = req.query;
     let sql = `
@@ -509,7 +517,7 @@ app.get('/api/travel/summary/:eventId', requireUserId, async (req, res) => {
 });
 
 // GET /api/travel/:id — Single travel record
-app.get('/api/travel/:id', requireUserId, async (req, res) => {
+app.get('/api/travel/:id', requireUserId, validateTravelId, async (req, res) => {
   try {
     const record = await get(
       `SELECT t.*, e.clientName, e.eventType, e.eventDate, e.city
@@ -528,7 +536,7 @@ app.get('/api/travel/:id', requireUserId, async (req, res) => {
 });
 
 // POST /api/travel — Create a travel record
-app.post('/api/travel', requireUserId, async (req, res) => {
+app.post('/api/travel', requireUserId, validateCreateTravel, async (req, res) => {
   try {
     const b = req.body;
 
@@ -607,7 +615,7 @@ app.post('/api/travel', requireUserId, async (req, res) => {
 });
 
 // PUT /api/travel/:id — Update a travel record
-app.put('/api/travel/:id', requireUserId, async (req, res) => {
+app.put('/api/travel/:id', requireUserId, validateUpdateTravel, async (req, res) => {
   try {
     // Verify travel record exists and belongs to user's event
     const existing = await get(
@@ -683,7 +691,7 @@ app.put('/api/travel/:id', requireUserId, async (req, res) => {
 });
 
 // DELETE /api/travel/:id — Delete a travel record
-app.delete('/api/travel/:id', requireUserId, async (req, res) => {
+app.delete('/api/travel/:id', requireUserId, validateTravelId, async (req, res) => {
   try {
     // Verify travel record exists and belongs to user's event
     const existing = await get(
@@ -765,7 +773,7 @@ app.get('/api/team-contacts/:id/payments', requireUserId, async (req, res) => {
 });
 
 // POST /api/team-contacts — create contact
-app.post('/api/team-contacts', requireUserId, async (req, res) => {
+app.post('/api/team-contacts', requireUserId, validateCreateTeamContact, async (req, res) => {
   try {
     const { name, defaultRole, phone, notes } = req.body;
     if (!name || !name.trim()) {
@@ -787,7 +795,7 @@ app.post('/api/team-contacts', requireUserId, async (req, res) => {
 });
 
 // PUT /api/team-contacts/:id — update contact
-app.put('/api/team-contacts/:id', requireUserId, async (req, res) => {
+app.put('/api/team-contacts/:id', requireUserId, validateUpdateTeamContact, async (req, res) => {
   try {
     const existing = await get('SELECT * FROM team_contacts WHERE id = ? AND userId = ?', req.params.id, req.userId);
     if (!existing) return res.status(404).json({ success: false, error: 'Contact not found' });
@@ -807,7 +815,7 @@ app.put('/api/team-contacts/:id', requireUserId, async (req, res) => {
 });
 
 // DELETE /api/team-contacts/:id — delete contact
-app.delete('/api/team-contacts/:id', requireUserId, async (req, res) => {
+app.delete('/api/team-contacts/:id', requireUserId, validateTeamContactId, async (req, res) => {
   try {
     const existing = await get('SELECT * FROM team_contacts WHERE id = ? AND userId = ?', req.params.id, req.userId);
     if (!existing) return res.status(404).json({ success: false, error: 'Contact not found' });
@@ -868,7 +876,7 @@ app.get('/api/team/summary/:eventId', requireUserId, async (req, res) => {
 });
 
 // GET /api/team/:id — Single team member
-app.get('/api/team/:id', requireUserId, async (req, res) => {
+app.get('/api/team/:id', requireUserId, validateTeamMemberId, async (req, res) => {
   try {
     const row = await get(
       `SELECT t.*, e.clientName AS eventName, e.eventType, e.eventDate
@@ -885,7 +893,7 @@ app.get('/api/team/:id', requireUserId, async (req, res) => {
 });
 
 // POST /api/team — Create team member
-app.post('/api/team', requireUserId, async (req, res) => {
+app.post('/api/team', requireUserId, validateCreateTeamMember, async (req, res) => {
   try {
     const b = req.body;
     if (!b.eventId || !b.teamRole) {
@@ -930,7 +938,7 @@ app.post('/api/team', requireUserId, async (req, res) => {
 });
 
 // PUT /api/team/:id — Update team member
-app.put('/api/team/:id', requireUserId, async (req, res) => {
+app.put('/api/team/:id', requireUserId, validateUpdateTeamMember, async (req, res) => {
   try {
     // Verify team member exists and belongs to user's event
     const existing = await get(
@@ -966,7 +974,7 @@ app.put('/api/team/:id', requireUserId, async (req, res) => {
 });
 
 // DELETE /api/team/:id — Delete team member
-app.delete('/api/team/:id', requireUserId, async (req, res) => {
+app.delete('/api/team/:id', requireUserId, validateTeamMemberId, async (req, res) => {
   try {
     // Verify team member exists and belongs to user's event
     const existing = await get(
@@ -1000,7 +1008,7 @@ app.get('/api/settings', requireUserId, async (req, res) => {
 });
 
 // PUT /api/settings — Upsert one or many settings
-app.put('/api/settings', requireUserId, async (req, res) => {
+app.put('/api/settings', requireUserId, validateUpdateSettings, async (req, res) => {
   try {
     const updates = req.body;
     const now = new Date().toISOString();
@@ -1030,7 +1038,7 @@ app.put('/api/settings', requireUserId, async (req, res) => {
 // ─────────────────────────────────────────────
 
 // POST /api/feedback — Submit feedback
-app.post('/api/feedback', async (req, res) => {
+app.post('/api/feedback', validateFeedback, async (req, res) => {
   try {
     const { subject, message } = req.body;
     if (!message || !message.trim()) {
@@ -1086,7 +1094,7 @@ function generateOTP() {
 }
 
 // POST /api/auth/signup — Register with email, send OTP
-app.post('/api/auth/signup', async (req, res) => {
+app.post('/api/auth/signup', validateSignup, async (req, res) => {
   try {
     const { email, name } = req.body;
     if (!email || !email.trim()) {
@@ -1128,7 +1136,7 @@ app.post('/api/auth/signup', async (req, res) => {
 });
 
 // POST /api/auth/verify — Verify OTP and activate account
-app.post('/api/auth/verify', async (req, res) => {
+app.post('/api/auth/verify', validateVerifyOTP, async (req, res) => {
   try {
     const { email, code } = req.body;
     if (!email || !code) {
@@ -1169,7 +1177,7 @@ app.post('/api/auth/verify', async (req, res) => {
 });
 
 // POST /api/auth/login — Login with email, send OTP
-app.post('/api/auth/login', async (req, res) => {
+app.post('/api/auth/login', validateLogin, async (req, res) => {
   try {
     const { email } = req.body;
     if (!email || !email.trim()) {
@@ -1201,7 +1209,7 @@ app.post('/api/auth/login', async (req, res) => {
 });
 
 // POST /api/auth/login/verify — Verify login OTP
-app.post('/api/auth/login/verify', async (req, res) => {
+app.post('/api/auth/login/verify', validateVerifyOTP, async (req, res) => {
   try {
     const { email, code } = req.body;
     if (!email || !code) {
@@ -1235,7 +1243,7 @@ app.post('/api/auth/login/verify', async (req, res) => {
 });
 
 // POST /api/auth/resend — Resend OTP for either purpose
-app.post('/api/auth/resend', async (req, res) => {
+app.post('/api/auth/resend', validateResendOTP, async (req, res) => {
   try {
     const { email, purpose } = req.body;
     if (!email) {
@@ -1277,7 +1285,7 @@ app.get('/api/auth/me/:email', async (req, res) => {
 });
 
 // PUT /api/auth/profile — Update user profile (name, profileImage)
-app.put('/api/auth/profile', requireUserId, async (req, res) => {
+app.put('/api/auth/profile', requireUserId, validateUpdateProfile, async (req, res) => {
   try {
     const { name, profileImage } = req.body;
     const now = new Date().toISOString();
