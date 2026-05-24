@@ -782,11 +782,27 @@ app.post('/api/team-contacts', requireUserId, validateCreateTeamContact, async (
     }
     const id = require('crypto').randomUUID();
     const now = new Date().toISOString();
-    await run(
-      `INSERT INTO team_contacts (id, userId, name, defaultRole, phone, email, notes, createdAt, updatedAt)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      id, req.userId, name.trim(), defaultRole || 'assistant', phone || '', email || '', notes || '', now, now
-    );
+    
+    // Try with email column first, fall back to without if column doesn't exist
+    try {
+      await run(
+        `INSERT INTO team_contacts (id, userId, name, defaultRole, phone, email, notes, createdAt, updatedAt)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        id, req.userId, name.trim(), defaultRole || 'assistant', phone || '', email || '', notes || '', now, now
+      );
+    } catch (emailErr) {
+      if (emailErr.message && emailErr.message.includes('email')) {
+        // Email column doesn't exist yet, insert without it
+        await run(
+          `INSERT INTO team_contacts (id, userId, name, defaultRole, phone, notes, createdAt, updatedAt)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+          id, req.userId, name.trim(), defaultRole || 'assistant', phone || '', notes || '', now, now
+        );
+      } else {
+        throw emailErr;
+      }
+    }
+    
     const created = await get('SELECT * FROM team_contacts WHERE id = ?', id);
     res.status(201).json({ success: true, data: created });
   } catch (err) {
@@ -802,11 +818,27 @@ app.put('/api/team-contacts/:id', requireUserId, validateUpdateTeamContact, asyn
     if (!existing) return res.status(404).json({ success: false, error: 'Contact not found' });
     const { name, defaultRole, phone, email, notes } = req.body;
     const now = new Date().toISOString();
-    await run(
-      `UPDATE team_contacts SET name = ?, defaultRole = ?, phone = ?, email = ?, notes = ?, updatedAt = ? WHERE id = ? AND userId = ?`,
-      name?.trim() ?? existing.name, defaultRole ?? existing.defaultRole,
-      phone ?? existing.phone, email ?? existing.email, notes ?? existing.notes, now, req.params.id, req.userId
-    );
+    
+    // Try with email column first, fall back to without if column doesn't exist
+    try {
+      await run(
+        `UPDATE team_contacts SET name = ?, defaultRole = ?, phone = ?, email = ?, notes = ?, updatedAt = ? WHERE id = ? AND userId = ?`,
+        name?.trim() ?? existing.name, defaultRole ?? existing.defaultRole,
+        phone ?? existing.phone, email ?? existing.email, notes ?? existing.notes, now, req.params.id, req.userId
+      );
+    } catch (emailErr) {
+      if (emailErr.message && emailErr.message.includes('email')) {
+        // Email column doesn't exist yet, update without it
+        await run(
+          `UPDATE team_contacts SET name = ?, defaultRole = ?, phone = ?, notes = ?, updatedAt = ? WHERE id = ? AND userId = ?`,
+          name?.trim() ?? existing.name, defaultRole ?? existing.defaultRole,
+          phone ?? existing.phone, notes ?? existing.notes, now, req.params.id, req.userId
+        );
+      } else {
+        throw emailErr;
+      }
+    }
+    
     const updated = await get('SELECT * FROM team_contacts WHERE id = ?', req.params.id);
     res.json({ success: true, data: updated });
   } catch (err) {
@@ -1464,4 +1496,3 @@ async function start() {
   });
 }
 start().catch(err => { console.error('Failed to start:', err); process.exit(1); });
-// Deploy trigger Sun May 24 13:56:04 IST 2026
