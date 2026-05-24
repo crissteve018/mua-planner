@@ -776,16 +776,16 @@ app.get('/api/team-contacts/:id/payments', requireUserId, async (req, res) => {
 // POST /api/team-contacts — create contact
 app.post('/api/team-contacts', requireUserId, validateCreateTeamContact, async (req, res) => {
   try {
-    const { name, defaultRole, phone, notes } = req.body;
+    const { name, defaultRole, phone, email, notes } = req.body;
     if (!name || !name.trim()) {
       return res.status(400).json({ success: false, error: 'Name is required' });
     }
     const id = require('crypto').randomUUID();
     const now = new Date().toISOString();
     await run(
-      `INSERT INTO team_contacts (id, userId, name, defaultRole, phone, notes, createdAt, updatedAt)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-      id, req.userId, name.trim(), defaultRole || 'assistant', phone || '', notes || '', now, now
+      `INSERT INTO team_contacts (id, userId, name, defaultRole, phone, email, notes, createdAt, updatedAt)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      id, req.userId, name.trim(), defaultRole || 'assistant', phone || '', email || '', notes || '', now, now
     );
     const created = await get('SELECT * FROM team_contacts WHERE id = ?', id);
     res.status(201).json({ success: true, data: created });
@@ -800,12 +800,12 @@ app.put('/api/team-contacts/:id', requireUserId, validateUpdateTeamContact, asyn
   try {
     const existing = await get('SELECT * FROM team_contacts WHERE id = ? AND userId = ?', req.params.id, req.userId);
     if (!existing) return res.status(404).json({ success: false, error: 'Contact not found' });
-    const { name, defaultRole, phone, notes } = req.body;
+    const { name, defaultRole, phone, email, notes } = req.body;
     const now = new Date().toISOString();
     await run(
-      `UPDATE team_contacts SET name = ?, defaultRole = ?, phone = ?, notes = ?, updatedAt = ? WHERE id = ? AND userId = ?`,
+      `UPDATE team_contacts SET name = ?, defaultRole = ?, phone = ?, email = ?, notes = ?, updatedAt = ? WHERE id = ? AND userId = ?`,
       name?.trim() ?? existing.name, defaultRole ?? existing.defaultRole,
-      phone ?? existing.phone, notes ?? existing.notes, now, req.params.id, req.userId
+      phone ?? existing.phone, email ?? existing.email, notes ?? existing.notes, now, req.params.id, req.userId
     );
     const updated = await get('SELECT * FROM team_contacts WHERE id = ?', req.params.id);
     res.json({ success: true, data: updated });

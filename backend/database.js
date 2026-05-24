@@ -233,12 +233,16 @@ async function initializeDatabase() {
       name TEXT NOT NULL,
       defaultRole TEXT NOT NULL DEFAULT 'assistant',
       phone TEXT DEFAULT '',
+      email TEXT DEFAULT '',
       notes TEXT DEFAULT '',
       createdAt TEXT DEFAULT '',
       updatedAt TEXT DEFAULT ''
     )
   `);
   await pool.query(`CREATE INDEX IF NOT EXISTS idx_team_contacts_userId ON team_contacts(userId)`);
+
+  // Add email column if not exists (migration for existing databases)
+  await pool.query(`ALTER TABLE team_contacts ADD COLUMN IF NOT EXISTS email TEXT DEFAULT ''`).catch(() => {});
 
   await pool.query(`
     CREATE TABLE IF NOT EXISTS settings (

@@ -34,6 +34,7 @@ export default function ManageTeamScreen({ navigation }) {
   const [name, setName] = useState('');
   const [role, setRole] = useState('assistant');
   const [phone, setPhone] = useState('');
+  const [email, setEmail] = useState('');
   const [saving, setSaving] = useState(false);
   const [rolePickerVisible, setRolePickerVisible] = useState(false);
 
@@ -76,6 +77,7 @@ export default function ManageTeamScreen({ navigation }) {
     setName('');
     setRole('');
     setPhone('');
+    setEmail('');
     setModalVisible(true);
   };
 
@@ -84,6 +86,7 @@ export default function ManageTeamScreen({ navigation }) {
     setName(contact.name);
     setRole(contact.defaultRole);
     setPhone(contact.phone || '');
+    setEmail(contact.email || '');
     setModalVisible(true);
   };
 
@@ -92,7 +95,7 @@ export default function ManageTeamScreen({ navigation }) {
     if (!role) return Alert.alert('Required', 'Please select a role.');
     setSaving(true);
     try {
-      const payload = { name: name.trim(), defaultRole: role, phone: phone.trim() };
+      const payload = { name: name.trim(), defaultRole: role, phone: phone.trim(), email: email.trim() };
       const res = editing
         ? await updateTeamContact(editing.id, payload)
         : await createTeamContact(payload);
@@ -117,7 +120,7 @@ export default function ManageTeamScreen({ navigation }) {
         return;
       }
       const { data } = await Contacts.getContactsAsync({
-        fields: [Contacts.Fields.PhoneNumbers, Contacts.Fields.Name],
+        fields: [Contacts.Fields.PhoneNumbers, Contacts.Fields.Name, Contacts.Fields.Emails],
       });
       if (data.length > 0) {
         // Show contact picker
@@ -138,6 +141,9 @@ export default function ManageTeamScreen({ navigation }) {
             setPhone(c.phoneNumbers[0].number);
             if (!name.trim() && c.name) {
               setName(c.name);
+            }
+            if (!email.trim() && c.emails && c.emails.length > 0) {
+              setEmail(c.emails[0].email);
             }
           },
         }));
@@ -327,6 +333,18 @@ export default function ManageTeamScreen({ navigation }) {
                     <Ionicons name="person-add" size={20} color="#FFF" />
                   </TouchableOpacity>
                 </View>
+
+                <Text style={[styles.label, { color: C.textSecondary }]}>Email (optional)</Text>
+                <TextInput
+                  style={[styles.input, { borderColor: C.border, backgroundColor: C.inputBg, color: C.text }]}
+                  placeholder="Email address"
+                  placeholderTextColor={C.textMuted}
+                  value={email}
+                  onChangeText={setEmail}
+                  keyboardType="email-address"
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                />
 
                 <TouchableOpacity
                   style={[styles.saveBtn, { backgroundColor: C.primary, opacity: saving ? 0.6 : 1 }]}

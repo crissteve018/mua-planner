@@ -166,6 +166,7 @@ const validateCreateTeamContact = [
     .trim()
     .isLength({ max: 50 }),
   isPhoneOptional('phone'),
+  body('email').optional({ values: 'falsy' }).trim().isEmail().withMessage('Invalid email format'),
   handleValidation,
 ];
 
@@ -174,6 +175,7 @@ const validateUpdateTeamContact = [
   body('name').optional().trim().isLength({ min: 1, max: 200 }),
   body('defaultRole').optional().trim().isLength({ max: 50 }),
   isPhoneOptional('phone'),
+  body('email').optional({ values: 'falsy' }).trim().isEmail().withMessage('Invalid email format'),
   handleValidation,
 ];
 
