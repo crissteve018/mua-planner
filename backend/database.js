@@ -241,14 +241,6 @@ async function initializeDatabase() {
   `);
   await pool.query(`CREATE INDEX IF NOT EXISTS idx_team_contacts_userId ON team_contacts(userId)`);
 
-  // Add email column if not exists (migration for existing databases)
-  try {
-    await pool.query(`ALTER TABLE team_contacts ADD COLUMN IF NOT EXISTS email TEXT DEFAULT ''`);
-    console.log('Email column migration successful');
-  } catch (err) {
-    console.log('Email column migration error:', err.message);
-  }
-
   await pool.query(`
     CREATE TABLE IF NOT EXISTS settings (
       id SERIAL PRIMARY KEY,
@@ -317,6 +309,18 @@ async function initializeDatabase() {
     console.log('✅ Database migrated with userId support');
   } else {
     console.log('✅ Database already up to date');
+  }
+
+  // Always run: Add email column to team_contacts if not exists
+  try {
+    await pool.query(`ALTER TABLE team_contacts ADD COLUMN IF NOT EXISTS email TEXT DEFAULT ''`);
+    console.log('✅ Email column migration successful');
+  } catch (err) {
+    if (err.message && err.message.includes('already exists')) {
+      console.log('✅ Email column already exists');
+    } else {
+      console.log('⚠️ Email column migration error:', err.message);
+    }
   }
 }
 
