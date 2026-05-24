@@ -316,3 +316,4 @@ async function initializeDatabase() {
 }
 
 module.exports = { pool, all, get, run, transaction, initializeDatabase };
+
