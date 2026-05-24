@@ -242,7 +242,12 @@ async function initializeDatabase() {
   await pool.query(`CREATE INDEX IF NOT EXISTS idx_team_contacts_userId ON team_contacts(userId)`);
 
   // Add email column if not exists (migration for existing databases)
-  await pool.query(`ALTER TABLE team_contacts ADD COLUMN IF NOT EXISTS email TEXT DEFAULT ''`).catch(() => {});
+  try {
+    await pool.query(`ALTER TABLE team_contacts ADD COLUMN IF NOT EXISTS email TEXT DEFAULT ''`);
+    console.log('Email column migration successful');
+  } catch (err) {
+    console.log('Email column migration error:', err.message);
+  }
 
   await pool.query(`
     CREATE TABLE IF NOT EXISTS settings (
