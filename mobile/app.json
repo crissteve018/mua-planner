@@ -13,7 +13,10 @@
     },
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.muaplanner.app"
+      "bundleIdentifier": "com.muaplanner.app",
+      "infoPlist": {
+        "NSContactsUsageDescription": "Allow MUA Planner to access your contacts to quickly add team member phone numbers"
+      }
     },
     "android": {
       "adaptiveIcon": {
@@ -28,7 +31,13 @@
       "favicon": "./assets/favicon.png"
     },
     "plugins": [
-      "@react-native-community/datetimepicker"
+      "@react-native-community/datetimepicker",
+      [
+        "expo-contacts",
+        {
+          "contactsPermission": "Allow MUA Planner to access your contacts to quickly add team member phone numbers."
+        }
+      ]
     ]
   }
 }

@@ -14,6 +14,7 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
+import * as Contacts from 'expo-contacts';
 import {
   getTeamContacts,
   createTeamContact,
@@ -105,6 +106,53 @@ export default function ManageTeamScreen({ navigation }) {
       Alert.alert('Error', 'Could not save contact.');
     } finally {
       setSaving(false);
+    }
+  };
+
+  const pickContact = async () => {
+    try {
+      const { status } = await Contacts.requestPermissionsAsync();
+      if (status !== 'granted') {
+        Alert.alert('Permission Denied', 'Please allow access to contacts in Settings to use this feature.');
+        return;
+      }
+      const { data } = await Contacts.getContactsAsync({
+        fields: [Contacts.Fields.PhoneNumbers, Contacts.Fields.Name],
+      });
+      if (data.length > 0) {
+        // Show contact picker
+        const contactNames = data
+          .filter(c => c.phoneNumbers && c.phoneNumbers.length > 0)
+          .slice(0, 100); // Limit for performance
+        
+        if (contactNames.length === 0) {
+          Alert.alert('No Contacts', 'No contacts with phone numbers found.');
+          return;
+        }
+        
+        // For simplicity, we'll use the first phone number of each contact
+        // In production, you might want a proper picker UI
+        const options = contactNames.map(c => ({
+          text: `${c.name} (${c.phoneNumbers[0].number})`,
+          onPress: () => {
+            setPhone(c.phoneNumbers[0].number);
+            if (!name.trim() && c.name) {
+              setName(c.name);
+            }
+          },
+        }));
+        
+        // Show as alert with options (limited to avoid issues)
+        const displayOptions = options.slice(0, 10);
+        displayOptions.push({ text: 'Cancel', style: 'cancel' });
+        
+        Alert.alert('Select Contact', 'Choose a contact:', displayOptions);
+      } else {
+        Alert.alert('No Contacts', 'No contacts found on this device.');
+      }
+    } catch (err) {
+      console.error('Error picking contact:', err);
+      Alert.alert('Error', 'Could not access contacts.');
     }
   };
 
@@ -262,14 +310,23 @@ export default function ManageTeamScreen({ navigation }) {
                 </TouchableOpacity>
 
                 <Text style={[styles.label, { color: C.textSecondary }]}>Phone (optional)</Text>
-                <TextInput
-                  style={[styles.input, { borderColor: C.border, backgroundColor: C.inputBg, color: C.text }]}
-                  placeholder="Phone number"
-                  placeholderTextColor={C.textMuted}
-                  value={phone}
-                  onChangeText={setPhone}
-                  keyboardType="phone-pad"
-                />
+                <View style={styles.phoneInputRow}>
+                  <TextInput
+                    style={[styles.input, styles.phoneInput, { borderColor: C.border, backgroundColor: C.inputBg, color: C.text }]}
+                    placeholder="Phone number"
+                    placeholderTextColor={C.textMuted}
+                    value={phone}
+                    onChangeText={setPhone}
+                    keyboardType="phone-pad"
+                  />
+                  <TouchableOpacity
+                    style={[styles.contactPickerBtn, { backgroundColor: C.primary }]}
+                    onPress={pickContact}
+                    accessibilityLabel="Pick from contacts"
+                  >
+                    <Ionicons name="person-add" size={20} color="#FFF" />
+                  </TouchableOpacity>
+                </View>
 
                 <TouchableOpacity
                   style={[styles.saveBtn, { backgroundColor: C.primary, opacity: saving ? 0.6 : 1 }]}
@@ -329,6 +386,11 @@ const styles = StyleSheet.create({
   modalTitle: { fontSize: 18, fontWeight: '700' },
   label: { fontSize: 13, fontWeight: '600', marginBottom: 6, marginTop: 12 },
   input: { borderWidth: 1, borderRadius: 10, paddingHorizontal: 14, paddingVertical: 12, fontSize: 15 },
+  phoneInputRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  phoneInput: { flex: 1 },
+  contactPickerBtn: {
+    width: 46, height: 46, borderRadius: 10, justifyContent: 'center', alignItems: 'center',
+  },
   picker: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
     borderWidth: 1, borderRadius: 10, paddingHorizontal: 14, paddingVertical: 13,
