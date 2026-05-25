@@ -32,6 +32,7 @@ import PrivacyPolicyScreen from './src/screens/PrivacyPolicyScreen';
 
 import { SettingsProvider, useSettings, useTheme } from './src/context/SettingsContext';
 import { AuthProvider, useAuth } from './src/context/AuthContext';
+import SplashScreen from './src/components/SplashScreen';
 
 const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
@@ -298,11 +299,7 @@ function AppShell() {
   };
 
   if (authLoading) {
-    return (
-      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: C.background }}>
-        <ActivityIndicator size="large" color={C.primary} />
-      </View>
-    );
+    return <SplashScreen />;
   }
 
   return (
