@@ -57,7 +57,7 @@ export default function SplashScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#FFF9FA',
+    backgroundColor: '#000000',
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -70,7 +70,7 @@ const styles = StyleSheet.create({
   appName: {
     fontSize: 24,
     fontWeight: '700',
-    color: '#FF6B8A',
+    color: '#D4AF37',
     marginBottom: 40,
   },
   loadingContainer: {
@@ -80,13 +80,13 @@ const styles = StyleSheet.create({
   loadingTrack: {
     width: '100%',
     height: 4,
-    backgroundColor: '#FFE4E8',
+    backgroundColor: '#333333',
     borderRadius: 2,
     overflow: 'hidden',
   },
   loadingBar: {
     height: '100%',
-    backgroundColor: '#FF6B8A',
+    backgroundColor: '#D4AF37',
     borderRadius: 2,
   },
 });
