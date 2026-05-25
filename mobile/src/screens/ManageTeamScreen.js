@@ -200,6 +200,9 @@ export default function ManageTeamScreen({ navigation }) {
             <Text style={[styles.contactRole, { color: ri?.color || C.textSecondary }]}>{ri?.label || item.defaultRole}</Text>
             {item.phone ? <Text style={[styles.contactPhone, { color: C.textMuted }]}> · {item.phone}</Text> : null}
           </View>
+          {item.email ? (
+            <Text style={[styles.contactEmail, { color: C.textMuted }]}>{item.email}</Text>
+          ) : null}
         </View>
         {pending > 0 && (
           <View style={[styles.pendingBadge, { backgroundColor: '#FF6B6B18' }]}>
@@ -378,6 +381,7 @@ const styles = StyleSheet.create({
   contactName: { fontSize: 15, fontWeight: '700' },
   contactRole: { fontSize: 12, fontWeight: '600' },
   contactPhone: { fontSize: 12 },
+  contactEmail: { fontSize: 11, marginTop: 2 },
   iconBtn: { padding: 6 },
   pendingBadge: { alignItems: 'center', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8 },
   pendingText: { fontSize: 14, fontWeight: '800', color: '#FF6B6B' },

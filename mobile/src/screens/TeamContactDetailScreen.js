@@ -129,6 +129,9 @@ export default function TeamContactDetailScreen({ route }) {
             {ri?.label || contact.defaultRole}
             {contact.phone ? `  ·  ${contact.phone}` : ''}
           </Text>
+          {contact.email ? (
+            <Text style={[styles.headerEmail, { color: C.textMuted }]}>{contact.email}</Text>
+          ) : null}
         </View>
       </View>
 
@@ -188,6 +191,7 @@ const styles = StyleSheet.create({
   },
   headerName: { fontSize: 18, fontWeight: '800' },
   headerRole: { fontSize: 13, fontWeight: '600', marginTop: 2 },
+  headerEmail: { fontSize: 12, marginTop: 2 },
 
   summaryRow: { flexDirection: 'row', paddingHorizontal: 16, paddingTop: 16, gap: 10 },
   summaryCard: {
