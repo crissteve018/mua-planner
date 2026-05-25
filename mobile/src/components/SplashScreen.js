@@ -1,7 +1,10 @@
 import React, { useEffect, useRef } from 'react';
-import { View, Image, StyleSheet, Animated, Dimensions } from 'react-native';
+import { View, Image, StyleSheet, Animated, Dimensions, Text } from 'react-native';
 
 const { width } = Dimensions.get('window');
+
+// Use require at module level to ensure the image is bundled
+const appIcon = require('../../assets/icon.png');
 
 export default function SplashScreen() {
   const progress = useRef(new Animated.Value(0)).current;
@@ -32,10 +35,11 @@ export default function SplashScreen() {
   return (
     <View style={styles.container}>
       <Image
-        source={require('../../assets/icon.png')}
+        source={appIcon}
         style={styles.icon}
         resizeMode="contain"
       />
+      <Text style={styles.appName}>MUA Planner</Text>
       <View style={styles.loadingContainer}>
         <View style={styles.loadingTrack}>
           <Animated.View
@@ -61,6 +65,12 @@ const styles = StyleSheet.create({
     width: 140,
     height: 140,
     borderRadius: 28,
+    marginBottom: 16,
+  },
+  appName: {
+    fontSize: 24,
+    fontWeight: '700',
+    color: '#FF6B8A',
     marginBottom: 40,
   },
   loadingContainer: {

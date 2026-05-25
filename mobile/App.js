@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { StatusBar } from 'expo-status-bar';
 import { NavigationContainer, DefaultTheme, DarkTheme } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
@@ -283,6 +283,13 @@ function AppShell() {
   const { isDark } = useSettings();
   const C = useTheme();
   const { user, loading: authLoading } = useAuth();
+  const [minSplashDone, setMinSplashDone] = useState(false);
+
+  // Show splash for at least 1.5 seconds
+  useEffect(() => {
+    const timer = setTimeout(() => setMinSplashDone(true), 1500);
+    return () => clearTimeout(timer);
+  }, []);
 
   const navTheme = {
     ...(isDark ? DarkTheme : DefaultTheme),
@@ -298,7 +305,7 @@ function AppShell() {
     },
   };
 
-  if (authLoading) {
+  if (authLoading || !minSplashDone) {
     return <SplashScreen />;
   }
 
