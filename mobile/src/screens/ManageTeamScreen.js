@@ -11,6 +11,7 @@ import {
   ActivityIndicator,
   KeyboardAvoidingView,
   Platform,
+  Image,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
@@ -192,7 +193,11 @@ export default function ManageTeamScreen({ navigation }) {
         onPress={() => navigation.navigate('TeamContactDetail', { contactId: item.id, contactName: item.name })}
       >
         <View style={[styles.contactIcon, { backgroundColor: (ri?.color || '#999') + '18' }]}>
-          <Ionicons name={ri?.icon || 'person'} size={20} color={ri?.color || '#999'} />
+          {ri?.image ? (
+            <Image source={ri.image} style={styles.contactIconImage} />
+          ) : (
+            <Ionicons name={ri?.icon || 'person'} size={20} color={ri?.color || '#999'} />
+          )}
         </View>
         <View style={{ flex: 1 }}>
           <Text style={[styles.contactName, { color: C.text }]}>{item.name}</Text>
@@ -280,7 +285,11 @@ export default function ManageTeamScreen({ navigation }) {
                       onPress={() => { setRole(r.key); setRolePickerVisible(false); }}
                     >
                       <View style={[styles.roleItemIcon, { backgroundColor: r.color + '18' }]}>
-                        <Ionicons name={r.icon} size={20} color={r.color} />
+                        {r.image ? (
+                          <Image source={r.image} style={styles.roleItemImage} />
+                        ) : (
+                          <Ionicons name={r.icon} size={20} color={r.color} />
+                        )}
                       </View>
                       <Text style={[styles.roleItemLabel, { color: active ? r.color : C.text }]}>{r.label}</Text>
                       {active && <Ionicons name="checkmark" size={20} color={r.color} />}
@@ -378,6 +387,7 @@ const styles = StyleSheet.create({
     borderWidth: 1, marginBottom: 10, gap: 12,
   },
   contactIcon: { width: 42, height: 42, borderRadius: 12, justifyContent: 'center', alignItems: 'center' },
+  contactIconImage: { width: 26, height: 26, resizeMode: 'contain' },
   contactName: { fontSize: 15, fontWeight: '700' },
   contactRole: { fontSize: 12, fontWeight: '600' },
   contactPhone: { fontSize: 12 },
@@ -427,5 +437,6 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1, gap: 12,
   },
   roleItemIcon: { width: 38, height: 38, borderRadius: 12, justifyContent: 'center', alignItems: 'center' },
+  roleItemImage: { width: 24, height: 24, resizeMode: 'contain' },
   roleItemLabel: { fontSize: 15, fontWeight: '600', flex: 1 },
 });

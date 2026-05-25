@@ -5,6 +5,7 @@ import {
   FlatList,
   StyleSheet,
   ActivityIndicator,
+  Image,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
@@ -121,7 +122,11 @@ export default function TeamContactDetailScreen({ route }) {
       {/* ── Contact Header ── */}
       <View style={[styles.header, { backgroundColor: C.surface, borderBottomColor: C.borderLight }]}>
         <View style={[styles.headerIcon, { backgroundColor: (ri?.color || '#999') + '18' }]}>
-          <Ionicons name={ri?.icon || 'person'} size={28} color={ri?.color || '#999'} />
+          {ri?.image ? (
+            <Image source={ri.image} style={styles.headerIconImage} />
+          ) : (
+            <Ionicons name={ri?.icon || 'person'} size={28} color={ri?.color || '#999'} />
+          )}
         </View>
         <View style={{ flex: 1 }}>
           <Text style={[styles.headerName, { color: C.text }]}>{contact.name}</Text>
@@ -189,6 +194,7 @@ const styles = StyleSheet.create({
   headerIcon: {
     width: 52, height: 52, borderRadius: 16, justifyContent: 'center', alignItems: 'center',
   },
+  headerIconImage: { width: 32, height: 32, resizeMode: 'contain' },
   headerName: { fontSize: 18, fontWeight: '800' },
   headerRole: { fontSize: 13, fontWeight: '600', marginTop: 2 },
   headerEmail: { fontSize: 12, marginTop: 2 },

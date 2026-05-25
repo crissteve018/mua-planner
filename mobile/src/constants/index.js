@@ -218,14 +218,25 @@ export const BOOKING_STATUSES = [
 
 // ─── Team Constants ──────────────────────────
 
+// Custom role icons
+const ROLE_ICONS = {
+  makeup_artist: require('../../assets/icons/makeup-artist.png'),
+  hairstylist: require('../../assets/icons/hairstylist.png'),
+  saree_drapist: require('../../assets/icons/saree-drapist.png'),
+  assistant: require('../../assets/icons/assistant.png'),
+  driver: require('../../assets/icons/driver.png'),
+  photographer: require('../../assets/icons/photographer.png'),
+  event_planner: require('../../assets/icons/event-planner.png'),
+};
+
 export const TEAM_ROLES = [
-  { key: 'makeup_artist',   label: 'Makeup Artist',   icon: 'brush',        color: '#D81B60' },
-  { key: 'hairstylist',     label: 'Hairstylist',     icon: 'cut',          color: '#8E24AA' },
-  { key: 'saree_drapist',   label: 'Saree Drapist',   icon: 'ribbon',       color: '#D4883E' },
-  { key: 'assistant',       label: 'Assistant',        icon: 'people',       color: '#1565C0' },
-  { key: 'driver',          label: 'Driver',           icon: 'car',          color: '#2D8B5F' },
-  { key: 'photographer',    label: 'Photographer',     icon: 'camera',       color: '#00796B' },
-  { key: 'event_planner',   label: 'Event Planner',    icon: 'clipboard',    color: '#5C6BC0' },
+  { key: 'makeup_artist',   label: 'Makeup Artist',   icon: 'brush',        color: '#D81B60', image: ROLE_ICONS.makeup_artist },
+  { key: 'hairstylist',     label: 'Hairstylist',     icon: 'cut',          color: '#8E24AA', image: ROLE_ICONS.hairstylist },
+  { key: 'saree_drapist',   label: 'Saree Drapist',   icon: 'ribbon',       color: '#D4883E', image: ROLE_ICONS.saree_drapist },
+  { key: 'assistant',       label: 'Assistant',        icon: 'people',       color: '#1565C0', image: ROLE_ICONS.assistant },
+  { key: 'driver',          label: 'Driver',           icon: 'car',          color: '#2D8B5F', image: ROLE_ICONS.driver },
+  { key: 'photographer',    label: 'Photographer',     icon: 'camera',       color: '#00796B', image: ROLE_ICONS.photographer },
+  { key: 'event_planner',   label: 'Event Planner',    icon: 'clipboard',    color: '#5C6BC0', image: ROLE_ICONS.event_planner },
 ];
 
 export const TEAM_ROLE_MAP = Object.fromEntries(
