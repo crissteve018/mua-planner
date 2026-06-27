@@ -323,6 +323,14 @@ async function initializeDatabase() {
     }
   }
 
+  // Always run: Make email column nullable (phone users have no email)
+  try {
+    await pool.query(`ALTER TABLE users ALTER COLUMN email DROP NOT NULL`);
+    console.log('✅ Email nullable migration successful');
+  } catch (err) {
+    console.log('✅ Email column already nullable or migration not needed:', err.message);
+  }
+
   // Always run: Add phone column to users if not exists (Twilio phone auth)
   try {
     await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS phone TEXT DEFAULT ''`);

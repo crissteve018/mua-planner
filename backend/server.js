@@ -1548,8 +1548,8 @@ app.post('/api/auth/phone/verify', async (req, res) => {
     if (!user) {
       const id = uuidv4();
       await run(
-        'INSERT INTO users (id, phone, name, verified, createdAt, updatedAt) VALUES (?, ?, ?, 1, ?, ?)',
-        id, phone.trim(), (name || '').trim(), now, now
+        'INSERT INTO users (id, email, phone, name, verified, createdAt, updatedAt) VALUES (?, ?, ?, ?, 1, ?, ?)',
+        id, null, phone.trim(), (name || '').trim(), now, now
       );
       user = await get('SELECT id, phone, name, verified, createdAt FROM users WHERE id = ?', id);
     } else {
