@@ -15,7 +15,7 @@ const handleValidation = (req, res, next) => {
 
 // ── Sanitizers ──────────────────────────────────
 const sanitizeString = (field) => body(field).optional().trim().escape();
-const sanitizeEmail = (field) => body(field).optional().isEmail().normalizeEmail();
+const sanitizeEmail = (field) => body(field).optional({ checkFalsy: true }).isEmail().normalizeEmail();
 const sanitizeInt = (field) => body(field).optional().toInt();
 const sanitizeFloat = (field) => body(field).optional().toFloat();
 const sanitizeBool = (field) => body(field).optional().toBoolean();
