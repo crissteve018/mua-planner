@@ -493,7 +493,6 @@ export default function AddEventScreen({ navigation, route }) {
                 mode="date"
                 display={Platform.OS === 'ios' ? 'inline' : 'default'}
                 onChange={onDateChange}
-                minimumDate={new Date()}
                 accentColor={C.primary}
               />
               {Platform.OS === 'ios' && (
