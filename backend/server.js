@@ -14,6 +14,18 @@ const {
   validateUpdateSettings, validateFeedback,
 } = require('./validators');
 
+// ── Twilio Verify (Phone OTP) ───────────────
+const twilio = require('twilio');
+let twilioClient = null;
+function initTwilio() {
+  if (process.env.TWILIO_ACCOUNT_SID && process.env.TWILIO_AUTH_TOKEN) {
+    twilioClient = twilio(process.env.TWILIO_ACCOUNT_SID, process.env.TWILIO_AUTH_TOKEN);
+    console.log('📱 Twilio Verify: configured');
+  } else {
+    console.log('📱 Twilio Verify: not configured (set TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, TWILIO_VERIFY_SID)');
+  }
+}
+
 // ── Email transport (Brevo SMTP) ─────────────
 let mailTransporter = null;
 function initMailTransport() {
@@ -1485,6 +1497,72 @@ app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
 
+// ─────────────────────────────────────────────
+// PHONE OTP AUTH (Twilio Verify)
+// ─────────────────────────────────────────────
+
+// POST /api/auth/phone/send — Send SMS OTP via Twilio Verify
+app.post('/api/auth/phone/send', async (req, res) => {
+  try {
+    const { phone } = req.body;
+    if (!phone || !phone.trim()) {
+      return res.status(400).json({ success: false, error: 'Phone number is required' });
+    }
+    const cleanPhone = phone.trim();
+    // Must include country code e.g. +919876543210
+    if (!/^\+[1-9]\d{6,14}$/.test(cleanPhone)) {
+      return res.status(400).json({ success: false, error: 'Phone number must include country code (e.g. +919876543210)' });
+    }
+    if (!twilioClient) {
+      return res.status(503).json({ success: false, error: 'SMS service not configured' });
+    }
+    await twilioClient.verify.v2
+      .services(process.env.TWILIO_VERIFY_SID)
+      .verifications.create({ to: cleanPhone, channel: 'sms' });
+    res.json({ success: true, message: 'OTP sent to your phone' });
+  } catch (err) {
+    console.error('Twilio send error:', err.message);
+    res.status(500).json({ success: false, error: 'Failed to send OTP. Please check the phone number format.' });
+  }
+});
+
+// POST /api/auth/phone/verify — Verify SMS OTP and upsert user
+app.post('/api/auth/phone/verify', async (req, res) => {
+  try {
+    const { phone, code, name } = req.body;
+    if (!phone || !code) {
+      return res.status(400).json({ success: false, error: 'Phone number and OTP code are required' });
+    }
+    if (!twilioClient) {
+      return res.status(503).json({ success: false, error: 'SMS service not configured' });
+    }
+    const result = await twilioClient.verify.v2
+      .services(process.env.TWILIO_VERIFY_SID)
+      .verificationChecks.create({ to: phone.trim(), code: code.trim() });
+    if (result.status !== 'approved') {
+      return res.status(400).json({ success: false, error: 'Invalid or expired OTP. Please try again.' });
+    }
+    // Upsert user by phone
+    const now = new Date().toISOString();
+    let user = await get('SELECT * FROM users WHERE phone = ?', phone.trim());
+    if (!user) {
+      const id = uuidv4();
+      await run(
+        'INSERT INTO users (id, phone, name, verified, createdAt, updatedAt) VALUES (?, ?, ?, 1, ?, ?)',
+        id, phone.trim(), (name || '').trim(), now, now
+      );
+      user = await get('SELECT id, phone, name, verified, createdAt FROM users WHERE id = ?', id);
+    } else {
+      await run('UPDATE users SET verified = 1, updatedAt = ? WHERE phone = ?', now, phone.trim());
+      user = await get('SELECT id, phone, name, verified, createdAt FROM users WHERE phone = ?', phone.trim());
+    }
+    res.json({ success: true, data: user });
+  } catch (err) {
+    console.error('Twilio verify error:', err.message);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
 // Start server
 async function start() {
   await initializeDatabase();
@@ -1494,5 +1572,6 @@ async function start() {
     // Start notification scheduler after server is up
     startNotificationScheduler();
   });
+  initTwilio();
 }
 start().catch(err => { console.error('Failed to start:', err); process.exit(1); });

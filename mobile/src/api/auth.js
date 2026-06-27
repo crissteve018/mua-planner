@@ -34,3 +34,13 @@ export const updateProfile = async (data) => {
   const response = await api.put('/api/auth/profile', data);
   return response.data;
 };
+
+export const sendPhoneOTP = async (phone) => {
+  const response = await api.post('/api/auth/phone/send', { phone });
+  return response.data;
+};
+
+export const verifyPhoneOTP = async (phone, code, name) => {
+  const response = await api.post('/api/auth/phone/verify', { phone, code, name });
+  return response.data;
+};

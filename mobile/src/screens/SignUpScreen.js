@@ -12,15 +12,43 @@ import {
   ScrollView,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { signup } from '../api/auth';
+import { signup, sendPhoneOTP } from '../api/auth';
 import { COLORS } from '../constants';
 
 export default function SignUpScreen({ navigation }) {
+  const [mode, setMode] = useState('email'); // 'email' | 'phone'
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
+  const [phone, setPhone] = useState('');
   const [loading, setLoading] = useState(false);
 
   const handleSignUp = async () => {
+    if (mode === 'phone') {
+      if (!phone.trim()) {
+        Alert.alert('Required', 'Please enter your phone number');
+        return;
+      }
+      const cleanPhone = phone.trim().startsWith('+') ? phone.trim() : `+91${phone.trim()}`;
+      setLoading(true);
+      try {
+        const res = await sendPhoneOTP(cleanPhone);
+        if (res.success) {
+          navigation.navigate('OTPVerification', {
+            phone: cleanPhone,
+            purpose: 'phone_verify',
+            name: name.trim(),
+          });
+        }
+      } catch (err) {
+        const msg = err.response?.data?.error || 'Something went wrong. Please try again.';
+        Alert.alert('Sign Up Failed', msg);
+      } finally {
+        setLoading(false);
+      }
+      return;
+    }
+
+    // Email flow
     if (!email.trim()) {
       Alert.alert('Required', 'Please enter your email address');
       return;
@@ -73,6 +101,26 @@ export default function SignUpScreen({ navigation }) {
           <Text style={styles.formTitle}>Create Account</Text>
           <Text style={styles.formSubtitle}>Sign up to get started</Text>
 
+          {/* ── Mode Toggle ── */}
+          <View style={styles.toggleRow}>
+            <TouchableOpacity
+              style={[styles.toggleBtn, mode === 'email' && styles.toggleBtnActive]}
+              onPress={() => setMode('email')}
+              activeOpacity={0.8}
+            >
+              <Ionicons name="mail-outline" size={16} color={mode === 'email' ? '#fff' : COLORS.textSecondary} />
+              <Text style={[styles.toggleBtnText, mode === 'email' && styles.toggleBtnTextActive]}>Email</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.toggleBtn, mode === 'phone' && styles.toggleBtnActive]}
+              onPress={() => setMode('phone')}
+              activeOpacity={0.8}
+            >
+              <Ionicons name="phone-portrait-outline" size={16} color={mode === 'phone' ? '#fff' : COLORS.textSecondary} />
+              <Text style={[styles.toggleBtnText, mode === 'phone' && styles.toggleBtnTextActive]}>Phone</Text>
+            </TouchableOpacity>
+          </View>
+
           <View style={styles.inputGroup}>
             <Text style={styles.label}>Full Name</Text>
             <View style={styles.inputRow}>
@@ -90,25 +138,46 @@ export default function SignUpScreen({ navigation }) {
             </View>
           </View>
 
-          <View style={styles.inputGroup}>
-            <Text style={styles.label}>Email Address <Text style={styles.required}>*</Text></Text>
-            <View style={styles.inputRow}>
-              <Ionicons name="mail-outline" size={20} color={COLORS.textMuted} style={styles.inputIcon} />
-              <TextInput
-                style={styles.input}
-                placeholder="you@example.com"
-                placeholderTe
-                textContentType="emailAddress"xtColor={COLORS.textMuted}
-                value={email}
-                onChangeText={setEmail}
-                autoCapitalize="none"
-                keyboardType="email-address"
-                autoComplete="email"
-                returnKeyType="done"
-                onSubmitEditing={handleSignUp}
-              />
+          {mode === 'email' ? (
+            <View style={styles.inputGroup}>
+              <Text style={styles.label}>Email Address <Text style={styles.required}>*</Text></Text>
+              <View style={styles.inputRow}>
+                <Ionicons name="mail-outline" size={20} color={COLORS.textMuted} style={styles.inputIcon} />
+                <TextInput
+                  style={styles.input}
+                  placeholder="you@example.com"
+                  placeholderTextColor={COLORS.textMuted}
+                  value={email}
+                  onChangeText={setEmail}
+                  autoCapitalize="none"
+                  keyboardType="email-address"
+                  autoComplete="email"
+                  textContentType="emailAddress"
+                  returnKeyType="done"
+                  onSubmitEditing={handleSignUp}
+                />
+              </View>
             </View>
-          </View>
+          ) : (
+            <View style={styles.inputGroup}>
+              <Text style={styles.label}>Phone Number <Text style={styles.required}>*</Text></Text>
+              <View style={styles.inputRow}>
+                <Text style={styles.dialCode}>+91</Text>
+                <TextInput
+                  style={styles.input}
+                  placeholder="98765 43210"
+                  placeholderTextColor={COLORS.textMuted}
+                  value={phone}
+                  onChangeText={setPhone}
+                  keyboardType="phone-pad"
+                  returnKeyType="done"
+                  onSubmitEditing={handleSignUp}
+                  maxLength={10}
+                />
+              </View>
+              <Text style={styles.phoneHint}>India (+91) auto-applied. Start with + for other countries.</Text>
+            </View>
+          )}
 
           <TouchableOpacity
             style={[styles.primaryBtn, loading && styles.btnDisabled]}
@@ -262,6 +331,56 @@ const styles = StyleSheet.create({
     fontSize: 17,
     fontWeight: '700',
     color: '#fff',
+  },
+
+  // Toggle
+  toggleRow: {
+    flexDirection: 'row',
+    backgroundColor: COLORS.inputBg,
+    borderRadius: 12,
+    padding: 4,
+    marginBottom: 20,
+    gap: 4,
+  },
+  toggleBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 10,
+    borderRadius: 10,
+    gap: 6,
+  },
+  toggleBtnActive: {
+    backgroundColor: COLORS.primary,
+    shadowColor: COLORS.primary,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  toggleBtnText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: COLORS.textSecondary,
+  },
+  toggleBtnTextActive: {
+    color: '#fff',
+  },
+  dialCode: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: COLORS.text,
+    marginRight: 8,
+    paddingRight: 8,
+    borderRightWidth: 1,
+    borderRightColor: COLORS.border,
+  },
+  phoneHint: {
+    fontSize: 11,
+    color: COLORS.textMuted,
+    marginTop: 6,
+    fontStyle: 'italic',
   },
 
   // Footer

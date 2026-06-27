@@ -322,6 +322,18 @@ async function initializeDatabase() {
       console.log('⚠️ Email column migration error:', err.message);
     }
   }
+
+  // Always run: Add phone column to users if not exists (Twilio phone auth)
+  try {
+    await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS phone TEXT DEFAULT ''`);
+    console.log('✅ Phone column migration successful');
+  } catch (err) {
+    if (err.message && err.message.includes('already exists')) {
+      console.log('✅ Phone column already exists');
+    } else {
+      console.log('⚠️ Phone column migration error:', err.message);
+    }
+  }
 }
 
 module.exports = { pool, all, get, run, transaction, initializeDatabase };

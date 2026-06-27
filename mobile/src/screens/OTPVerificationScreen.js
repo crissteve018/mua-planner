@@ -11,14 +11,14 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { verifySignup, verifyLogin, resendOTP } from '../api/auth';
+import { verifySignup, verifyLogin, resendOTP, verifyPhoneOTP, sendPhoneOTP } from '../api/auth';
 import { useAuth } from '../context/AuthContext';
 import { COLORS } from '../constants';
 
 const OTP_LENGTH = 6;
 
 export default function OTPVerificationScreen({ route, navigation }) {
-  const { email, purpose } = route.params;
+  const { email, phone, purpose } = route.params;
   const { signIn } = useAuth();
 
   const [otp, setOtp] = useState(Array(OTP_LENGTH).fill(''));
@@ -73,8 +73,13 @@ export default function OTPVerificationScreen({ route, navigation }) {
 
     setLoading(true);
     try {
-      const verifyFn = purpose === 'login' ? verifyLogin : verifySignup;
-      const res = await verifyFn(email, finalCode);
+      let res;
+      if (phone) {
+        res = await verifyPhoneOTP(phone, finalCode, route.params.name);
+      } else {
+        const verifyFn = purpose === 'login' ? verifyLogin : verifySignup;
+        res = await verifyFn(email, finalCode);
+      }
       if (res.success) {
         await signIn(res.data);
       }
@@ -93,9 +98,14 @@ export default function OTPVerificationScreen({ route, navigation }) {
     if (countdown > 0) return;
     setResending(true);
     try {
-      const res = await resendOTP(email, purpose);
+      let res;
+      if (phone) {
+        res = await sendPhoneOTP(phone);
+      } else {
+        res = await resendOTP(email, purpose);
+      }
       if (res.success) {
-        Alert.alert('OTP Sent', 'A new OTP has been sent to your email');
+        Alert.alert('OTP Sent', phone ? 'A new OTP has been sent via SMS' : 'A new OTP has been sent to your email');
         setCountdown(60);
         setOtp(Array(OTP_LENGTH).fill(''));
         inputs.current[0]?.focus();
@@ -120,13 +130,13 @@ export default function OTPVerificationScreen({ route, navigation }) {
 
         {/* ── Icon ── */}
         <View style={styles.iconCircle}>
-          <Ionicons name="mail-open-outline" size={36} color="#fff" />
+          <Ionicons name={phone ? 'phone-portrait-outline' : 'mail-open-outline'} size={36} color="#fff" />
         </View>
 
-        <Text style={styles.title}>Verify Your Email</Text>
+        <Text style={styles.title}>{phone ? 'Verify Your Phone' : 'Verify Your Email'}</Text>
         <Text style={styles.subtitle}>
-          We've sent a 6-digit code to{'\n'}
-          <Text style={styles.emailHighlight}>{email}</Text>
+          {phone ? "We've sent a 6-digit code via SMS to" : "We've sent a 6-digit code to"}{' '}
+          <Text style={styles.emailHighlight}>{phone || email}</Text>
         </Text>
 
         {/* ── OTP Input ── */}
@@ -181,10 +191,12 @@ export default function OTPVerificationScreen({ route, navigation }) {
         </View>
 
         {/* ── Dev hint ── */}
-        <View style={styles.devHint}>
-          <Ionicons name="information-circle-outline" size={16} color={COLORS.textMuted} />
-          <Text style={styles.devHintText}>Check your server console for the OTP</Text>
-        </View>
+        {!phone && (
+          <View style={styles.devHint}>
+            <Ionicons name="information-circle-outline" size={16} color={COLORS.textMuted} />
+            <Text style={styles.devHintText}>Check your server console for the OTP</Text>
+          </View>
+        )}
       </View>
     </KeyboardAvoidingView>
   );
