@@ -44,3 +44,18 @@ export const verifyPhoneOTP = async (phone, code, name) => {
   const response = await api.post('/api/auth/phone/verify', { phone, code, name });
   return response.data;
 };
+
+export const registerUser = async (name, email, phone, password) => {
+  const response = await api.post('/api/auth/register', { name, email, phone, password });
+  return response.data;
+};
+
+export const verifyRegistration = async (name, email, phone, password, emailCode, phoneCode) => {
+  const response = await api.post('/api/auth/register/verify', { name, email, phone, password, emailCode, phoneCode });
+  return response.data;
+};
+
+export const loginWithPassword = async (email, password) => {
+  const response = await api.post('/api/auth/login/password', { email, password });
+  return response.data;
+};

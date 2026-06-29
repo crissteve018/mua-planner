@@ -10,6 +10,7 @@ import { ActivityIndicator, View } from 'react-native';
 import SignUpScreen from './src/screens/SignUpScreen';
 import LoginScreen from './src/screens/LoginScreen';
 import OTPVerificationScreen from './src/screens/OTPVerificationScreen';
+import DualOTPScreen from './src/screens/DualOTPScreen';
 
 import EventListScreen from './src/screens/EventListScreen';
 import EventDetailScreen from './src/screens/EventDetailScreen';
@@ -44,6 +45,7 @@ function AuthStack() {
       <Stack.Screen name="SignUp" component={SignUpScreen} />
       <Stack.Screen name="Login" component={LoginScreen} />
       <Stack.Screen name="OTPVerification" component={OTPVerificationScreen} />
+      <Stack.Screen name="DualOTP" component={DualOTPScreen} />
     </Stack.Navigator>
   );
 }

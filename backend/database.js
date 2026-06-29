@@ -342,6 +342,18 @@ async function initializeDatabase() {
       console.log('⚠️ Phone column migration error:', err.message);
     }
   }
+
+  // Always run: Add password_hash column for password-based auth
+  try {
+    await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS password_hash TEXT DEFAULT NULL`);
+    console.log('✅ password_hash column migration successful');
+  } catch (err) {
+    if (err.message && err.message.includes('already exists')) {
+      console.log('✅ password_hash column already exists');
+    } else {
+      console.log('⚠️ password_hash column migration error:', err.message);
+    }
+  }
 }
 
 module.exports = { pool, all, get, run, transaction, initializeDatabase };

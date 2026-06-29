@@ -2,6 +2,7 @@
 const express = require('express');
 const cors = require('cors');
 const nodemailer = require('nodemailer');
+const bcrypt = require('bcrypt');
 const { v4: uuidv4 } = require('uuid');
 const { all, get, run, transaction, initializeDatabase } = require('./database');
 const { startNotificationScheduler } = require('./notificationScheduler');
@@ -1509,13 +1510,19 @@ app.post('/api/auth/phone/send', async (req, res) => {
       return res.status(400).json({ success: false, error: 'Phone number is required' });
     }
     const cleanPhone = phone.trim();
-    // Must include country code e.g. +919876543210
     if (!/^\+[1-9]\d{6,14}$/.test(cleanPhone)) {
       return res.status(400).json({ success: false, error: 'Phone number must include country code (e.g. +919876543210)' });
     }
     if (!twilioClient) {
       return res.status(503).json({ success: false, error: 'SMS service not configured' });
     }
+
+    // Check if a registered user exists with this phone number
+    const user = await get('SELECT id FROM users WHERE phone = $1 AND verified = 1', cleanPhone);
+    if (!user) {
+      return res.status(404).json({ success: false, error: 'No account found with this phone number. Please sign up first or use Email login.' });
+    }
+
     await twilioClient.verify.v2
       .services(process.env.TWILIO_VERIFY_SID)
       .verifications.create({ to: cleanPhone, channel: 'sms' });
@@ -1559,6 +1566,170 @@ app.post('/api/auth/phone/verify', async (req, res) => {
     res.json({ success: true, data: user });
   } catch (err) {
     console.error('Twilio verify error:', err.message);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// ─────────────────────────────────────────────
+// PASSWORD-BASED AUTH ROUTES
+// ─────────────────────────────────────────────
+
+// Helper: mask email for display
+function maskEmail(email) {
+  const [local, domain] = email.split('@');
+  const masked = local.slice(0, 2) + '*'.repeat(Math.max(local.length - 2, 3));
+  return `${masked}@${domain}`;
+}
+
+// Helper: mask phone for display
+function maskPhone(phone) {
+  return phone.slice(0, -3).replace(/\d/g, '*') + phone.slice(-3);
+}
+
+// POST /api/auth/register — New full signup (name, email, phone optional, password)
+app.post('/api/auth/register', async (req, res) => {
+  try {
+    const { name, email, phone, password } = req.body;
+
+    if (!name || !name.trim()) return res.status(400).json({ success: false, error: 'Name is required' });
+    if (!email || !email.trim()) return res.status(400).json({ success: false, error: 'Email is required' });
+    if (!password || password.length < 8) return res.status(400).json({ success: false, error: 'Password must be at least 8 characters' });
+
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email.trim())) return res.status(400).json({ success: false, error: 'Invalid email address' });
+
+    const cleanEmail = email.trim().toLowerCase();
+    if (!phone || !phone.trim()) return res.status(400).json({ success: false, error: 'Phone number is required' });
+    const cleanPhone = phone.trim();
+
+    if (!/^\+[1-9]\d{6,14}$/.test(cleanPhone)) {
+      return res.status(400).json({ success: false, error: 'Phone must be in international format e.g. +919876543210' });
+    }
+
+    // Check if already registered and verified
+    const existing = await get('SELECT * FROM users WHERE email = $1', cleanEmail);
+    if (existing && existing.verified) {
+      return res.status(409).json({ success: false, error: 'An account with this email already exists. Please login.' });
+    }
+
+    // Send email OTP
+    const now = new Date().toISOString();
+    await run('UPDATE otp SET used = 1 WHERE email = $1 AND used = 0', cleanEmail);
+    const emailCode = generateOTP();
+    const expiresAt = new Date(Date.now() + 10 * 60 * 1000).toISOString();
+    await run('INSERT INTO otp (email, code, purpose, expiresAt, createdAt) VALUES ($1, $2, $3, $4, $5)',
+      cleanEmail, emailCode, 'register', expiresAt, now);
+    await sendOTPEmail(cleanEmail, emailCode, 'verify');
+
+    // Send phone OTP via Twilio if phone provided
+    if (cleanPhone && twilioClient) {
+      await twilioClient.verify.v2.services(process.env.TWILIO_VERIFY_SID)
+        .verifications.create({ to: cleanPhone, channel: 'sms' });
+    }
+
+    res.json({
+      success: true,
+      maskedEmail: maskEmail(cleanEmail),
+      maskedPhone: cleanPhone ? maskPhone(cleanPhone) : null,
+      hasPhone: !!cleanPhone,
+    });
+  } catch (err) {
+    console.error('Register error:', err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// POST /api/auth/register/verify — Verify OTPs and create user
+app.post('/api/auth/register/verify', async (req, res) => {
+  try {
+    const { name, email, phone, password, emailCode, phoneCode } = req.body;
+
+    if (!email || !emailCode) return res.status(400).json({ success: false, error: 'Email and OTP are required' });
+    if (!password || password.length < 8) return res.status(400).json({ success: false, error: 'Password must be at least 8 characters' });
+
+    const cleanEmail = email.trim().toLowerCase();
+    const cleanPhone = phone && phone.trim() ? phone.trim() : null;
+
+    // Verify email OTP
+    const otpRecord = await get(
+      `SELECT * FROM otp WHERE email = $1 AND code = $2 AND used = 0 AND purpose = 'register'
+       ORDER BY createdAt DESC LIMIT 1`,
+      cleanEmail, emailCode.trim()
+    );
+    if (!otpRecord) return res.status(400).json({ success: false, error: 'Invalid email OTP. Please try again.' });
+    if (new Date(otpRecord.expiresAt) < new Date()) {
+      await run('UPDATE otp SET used = 1 WHERE id = $1', otpRecord.id);
+      return res.status(400).json({ success: false, error: 'Email OTP has expired. Please start again.' });
+    }
+
+    // Verify phone OTP via Twilio if phone was provided
+    if (cleanPhone) {
+      if (!phoneCode) return res.status(400).json({ success: false, error: 'Phone OTP is required' });
+      if (!twilioClient) return res.status(500).json({ success: false, error: 'Phone verification unavailable' });
+      const result = await twilioClient.verify.v2.services(process.env.TWILIO_VERIFY_SID)
+        .verificationChecks.create({ to: cleanPhone, code: phoneCode.trim() });
+      if (result.status !== 'approved') {
+        return res.status(400).json({ success: false, error: 'Invalid phone OTP. Please try again.' });
+      }
+    }
+
+    // Mark email OTP used
+    await run('UPDATE otp SET used = 1 WHERE id = $1', otpRecord.id);
+
+    // Hash password
+    const passwordHash = await bcrypt.hash(password, 12);
+    const now = new Date().toISOString();
+
+    // Upsert user
+    const existing = await get('SELECT * FROM users WHERE email = $1', cleanEmail);
+    let userId;
+    if (existing) {
+      await run(
+        'UPDATE users SET name = $1, phone = $2, password_hash = $3, verified = 1, updatedAt = $4 WHERE email = $5',
+        name.trim(), cleanPhone || '', passwordHash, now, cleanEmail
+      );
+      userId = existing.id;
+    } else {
+      userId = uuidv4();
+      await run(
+        'INSERT INTO users (id, email, name, phone, password_hash, verified, createdAt, updatedAt) VALUES ($1,$2,$3,$4,$5,1,$6,$7)',
+        userId, cleanEmail, name.trim(), cleanPhone || '', passwordHash, now, now
+      );
+    }
+
+    const user = await get('SELECT id, email, name, phone, verified, createdAt FROM users WHERE id = $1', userId);
+    res.json({ success: true, data: user });
+  } catch (err) {
+    console.error('Register verify error:', err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// POST /api/auth/login/password — Login with email + password
+app.post('/api/auth/login/password', async (req, res) => {
+  try {
+    const { email, password } = req.body;
+    if (!email || !password) return res.status(400).json({ success: false, error: 'Email and password are required' });
+
+    const cleanEmail = email.trim().toLowerCase();
+    const user = await get('SELECT * FROM users WHERE email = $1', cleanEmail);
+
+    if (!user || !user.verified) {
+      return res.status(401).json({ success: false, error: 'No account found with this email. Please sign up.' });
+    }
+    if (!user.password_hash) {
+      return res.status(401).json({ success: false, error: 'This account uses OTP login. Please use Email OTP or Phone OTP.' });
+    }
+
+    const match = await bcrypt.compare(password, user.password_hash);
+    if (!match) {
+      return res.status(401).json({ success: false, error: 'Incorrect password. Please try again.' });
+    }
+
+    const { password_hash, ...safeUser } = user;
+    res.json({ success: true, data: safeUser });
+  } catch (err) {
+    console.error('Password login error:', err);
     res.status(500).json({ success: false, error: err.message });
   }
 });
