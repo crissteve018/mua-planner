@@ -8,6 +8,9 @@
 - **Backend:** `https://mua-planner1.onrender.com` (Render free tier, shared with macOS app)
 - **Related project:** macOS SwiftUI app at `crissteve018/mua-planner-mac`
 - **Owner:** Steve (GitHub: crissteve018)
+- **Apple Developer Account:** Active — app is distributed via **TestFlight**
+- **Bundle ID:** `SteveLearn.org.MUAPlanner`
+- **Xcode Workspace:** `ios/MUAPlanner.xcworkspace`
 
 ## Read This First
 Before starting any work, read the full technical guide:
@@ -71,6 +74,21 @@ Commit type prefixes:
 - `style:` — UI/styling changes
 - `refactor:` — code restructure, no behavior change
 - `chore:` — config, dependencies, tooling
+
+### 4. Prepare Xcode for TestFlight Build (when releasing)
+Steve has an active **Apple Developer account** and distributes the app via **TestFlight**. Before archiving, ensure:
+- `app.json` version/buildNumber is bumped if releasing a new build
+- Run `npx expo prebuild --platform ios` if any native config changed (new permissions, new native modules, etc.)
+- Open `ios/MUAPlanner.xcworkspace` in Xcode (never open `.xcodeproj` directly)
+- Set scheme to **MUAPlanner** and destination to **Any iOS Device (arm64)**
+- Go to **Product → Archive** to create the archive
+- Upload via **Distribute App → App Store Connect → TestFlight**
+
+**Remind Steve to Archive whenever:**
+- A new feature or fix is ready for testing
+- A new native permission was added (must rebuild native layer)
+- `app.json` or `Info.plist` was changed
+- Any Expo SDK or react-native upgrade was done
 
 ## Coding Conventions
 - All screens consume theme via `const C = useTheme();`
