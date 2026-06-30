@@ -14,6 +14,7 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.muaplanner.app",
+      "buildNumber": "1",
       "infoPlist": {
         "NSContactsUsageDescription": "Allow MUA Planner to access your contacts to quickly add team member phone numbers"
       }

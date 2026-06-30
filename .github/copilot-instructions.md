@@ -9,7 +9,7 @@
 - **Related project:** macOS SwiftUI app at `crissteve018/mua-planner-mac`
 - **Owner:** Steve (GitHub: crissteve018)
 - **Apple Developer Account:** Active — app is distributed via **TestFlight**
-- **Bundle ID:** `SteveLearn.org.MUAPlanner`
+- **Bundle ID:** `com.muaplanner.app`
 - **Xcode Workspace:** `ios/MUAPlanner.xcworkspace`
 
 ## Read This First
